@@ -402,32 +402,7 @@
     </div>
 
     <div id="stage-container">
-        <!-- Faceted System Canvases -->
-        <div id="faceted-canvases" class="system-canvases active">
-            <canvas id="faceted-background-canvas"></canvas>
-            <canvas id="faceted-shadow-canvas"></canvas>
-            <canvas id="faceted-content-canvas"></canvas>
-            <canvas id="faceted-highlight-canvas"></canvas>
-            <canvas id="faceted-accent-canvas"></canvas>
-        </div>
-
-        <!-- Quantum System Canvases -->
-        <div id="quantum-canvases" class="system-canvases">
-            <canvas id="quantum-background-canvas"></canvas>
-            <canvas id="quantum-shadow-canvas"></canvas>
-            <canvas id="quantum-content-canvas"></canvas>
-            <canvas id="quantum-highlight-canvas"></canvas>
-            <canvas id="quantum-accent-canvas"></canvas>
-        </div>
-
-        <!-- Holographic System Canvases -->
-        <div id="holographic-canvases" class="system-canvases">
-            <canvas id="holo-background-canvas"></canvas>
-            <canvas id="holo-shadow-canvas"></canvas>
-            <canvas id="holo-content-canvas"></canvas>
-            <canvas id="holo-highlight-canvas"></canvas>
-            <canvas id="holo-accent-canvas"></canvas>
-        </div>
+        <!-- Canvas container - canvases dynamically created per system -->
     </div>
 
     <div id="control-panel">
@@ -550,7 +525,7 @@
     </div>
 
     <script type="module">
-        import { Engine } from './src/core/Engine.js';
+        import { VIB34DIntegratedEngine } from './src/core/Engine.js';
         import { QuantumEngine } from './src/quantum/QuantumEngine.js';
         import { RealHolographicSystem } from './src/holograms/RealHolographicSystem.js';
 
@@ -618,21 +593,8 @@
             }
 
             async initCanvases() {
-                const width = window.innerWidth;
-                const height = window.innerHeight;
-
-                // Setup all canvas layers for all systems
-                ['faceted', 'quantum', 'holo'].forEach(prefix => {
-                    ['background', 'shadow', 'content', 'highlight', 'accent'].forEach(layer => {
-                        const canvas = document.getElementById(`${prefix === 'holo' ? 'holo' : prefix}-${layer}-canvas`);
-                        if (canvas) {
-                            canvas.width = width;
-                            canvas.height = height;
-                            const systemName = prefix === 'holo' ? 'holographic' : prefix;
-                            this.systems[systemName].canvases.push(canvas);
-                        }
-                    });
-                });
+                // Canvases are now created dynamically per system
+                // No pre-creation needed
             }
 
             async initCurrentSystem() {
@@ -647,19 +609,53 @@
 
                 // Destroy existing engine if present
                 if (sys.engine) {
-                    if (sys.engine.setActive) sys.engine.setActive(false);
-                    sys.engine = null;
+                    await this.destroySystem(systemName);
                 }
+
+                // CRITICAL: Create canvases with correct IDs for each system
+                const stageContainer = document.getElementById('stage-container');
+                stageContainer.innerHTML = ''; // Clear old canvases
+
+                const width = window.innerWidth;
+                const height = window.innerHeight;
+
+                // Define canvas IDs for each system type
+                const canvasIds = {
+                    faceted: ['background-canvas', 'shadow-canvas', 'content-canvas', 'highlight-canvas', 'accent-canvas'],
+                    quantum: ['quantum-background-canvas', 'quantum-shadow-canvas', 'quantum-content-canvas', 'quantum-highlight-canvas', 'quantum-accent-canvas'],
+                    holographic: ['holo-background-canvas', 'holo-shadow-canvas', 'holo-content-canvas', 'holo-highlight-canvas', 'holo-accent-canvas']
+                };
+
+                // Create canvases
+                const ids = canvasIds[systemName];
+                ids.forEach(id => {
+                    const canvas = document.createElement('canvas');
+                    canvas.id = id;
+                    canvas.width = width;
+                    canvas.height = height;
+                    canvas.style.position = 'absolute';
+                    canvas.style.top = '0';
+                    canvas.style.left = '0';
+                    canvas.style.width = '100%';
+                    canvas.style.height = '100%';
+                    stageContainer.appendChild(canvas);
+                    sys.canvases.push(canvas);
+                });
+
+                console.log(`✅ Created ${ids.length} canvases for ${systemName}`);
+
+                // Wait a frame for canvases to be fully laid out
+                await new Promise(resolve => requestAnimationFrame(resolve));
 
                 // Create new engine
                 try {
                     if (systemName === 'faceted') {
-                        sys.engine = new Engine();
-                        await sys.engine.init();
+                        sys.engine = new VIB34DIntegratedEngine();
+                        // VIB34DIntegratedEngine.init() is called in constructor
                         this.updateSystemParameters(sys.engine);
                     } else if (systemName === 'quantum') {
                         sys.engine = new QuantumEngine();
-                        await sys.engine.init();
+                        // QuantumEngine.init() is called in constructor
                         this.updateSystemParameters(sys.engine);
                     } else if (systemName === 'holographic') {
                         sys.engine = new RealHolographicSystem();
@@ -671,9 +667,10 @@
                         sys.engine.setActive(true);
                     }
 
-                    console.log(`✅ ${systemName} system created`);
+                    console.log(`✅ ${systemName} system created with ${sys.engine.visualizers ? sys.engine.visualizers.length : 0} visualizers`);
                 } catch (error) {
                     console.error(`❌ Failed to create ${systemName}:`, error);
+                    console.error('Error details:', error.stack);
                 }
             }
 
@@ -682,18 +679,12 @@
 
                 console.log(`🔄 Switching from ${this.currentSystem} to ${systemName}`);
 
-                // CRITICAL: Destroy old system to free resources (mobile performance)
-                const oldSys = this.systems[this.currentSystem];
-                if (oldSys.engine) {
-                    if (oldSys.engine.setActive) oldSys.engine.setActive(false);
-                    oldSys.engine = null; // Let garbage collector free memory
-                }
-                document.getElementById(`${this.currentSystem}-canvases`).classList.remove('active');
+                // CRITICAL: Properly destroy old system to free GPU resources (mobile performance)
+                await this.destroySystem(this.currentSystem);
 
-                // Create new system
+                // Create new system (this will also create new canvases)
                 this.currentSystem = systemName;
                 await this.createSystem(systemName);
-                document.getElementById(`${systemName}-canvases`).classList.add('active');
 
                 // Update UI
                 document.querySelectorAll('.system-pill').forEach(pill => {
@@ -701,6 +692,41 @@
                 });
 
                 console.log(`✅ Switched to ${systemName}`);
+            }
+
+            async destroySystem(systemName) {
+                const sys = this.systems[systemName];
+
+                console.log(`🗑️ Destroying ${systemName} system...`);
+
+                // Deactivate engine
+                if (sys.engine) {
+                    if (sys.engine.setActive) {
+                        sys.engine.setActive(false);
+                    }
+
+                    // Destroy all visualizers and their WebGL contexts
+                    if (sys.engine.visualizers && Array.isArray(sys.engine.visualizers)) {
+                        sys.engine.visualizers.forEach(viz => {
+                            if (viz.gl) {
+                                // Lose WebGL context to free GPU memory
+                                const ext = viz.gl.getExtension('WEBGL_lose_context');
+                                if (ext) ext.loseContext();
+                            }
+                        });
+                        sys.engine.visualizers = [];
+                    }
+
+                    // Clear engine reference
+                    sys.engine = null;
+                }
+
+                // Clear canvas references
+                sys.canvases = [];
+
+                // Canvases will be removed when stageContainer.innerHTML = '' is called in createSystem
+
+                console.log(`✅ ${systemName} destroyed`);
             }
 
             updateSystemParameters(engine) {
