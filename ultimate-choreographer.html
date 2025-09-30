@@ -607,6 +607,19 @@
 
                 const sys = this.systems[systemName];
 
+                // Prevent console spam from visualizers
+                const originalLog = console.log;
+                const logThrottle = {};
+                console.log = (...args) => {
+                    const msg = args.join(' ');
+                    const key = msg.substring(0, 50);
+                    const now = Date.now();
+                    if (!logThrottle[key] || now - logThrottle[key] > 1000) {
+                        logThrottle[key] = now;
+                        originalLog.apply(console, args);
+                    }
+                };
+
                 // Destroy existing engine if present
                 if (sys.engine) {
                     await this.destroySystem(systemName);
@@ -659,6 +672,9 @@
                         this.updateSystemParameters(sys.engine);
                     } else if (systemName === 'holographic') {
                         sys.engine = new RealHolographicSystem();
+                        // CRITICAL: Disable holographic's built-in audio to prevent conflicts
+                        sys.engine.audioEnabled = false;
+                        sys.engine.initAudio = () => {}; // Override to prevent initialization
                         await sys.engine.init();
                         this.updateSystemParameters(sys.engine);
                     }
@@ -671,6 +687,9 @@
                 } catch (error) {
                     console.error(`❌ Failed to create ${systemName}:`, error);
                     console.error('Error details:', error.stack);
+                } finally {
+                    // Restore original console.log
+                    console.log = originalLog;
                 }
             }
 
