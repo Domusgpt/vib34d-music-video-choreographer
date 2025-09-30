@@ -671,11 +671,40 @@
                         // QuantumEngine.init() is called in constructor
                         this.updateSystemParameters(sys.engine);
                     } else if (systemName === 'holographic') {
-                        sys.engine = new RealHolographicSystem();
-                        // CRITICAL: Disable holographic's built-in audio to prevent conflicts
-                        sys.engine.audioEnabled = false;
-                        sys.engine.initAudio = () => {}; // Override to prevent initialization
-                        await sys.engine.init();
+                        // CRITICAL: RealHolographicSystem calls initialize() in constructor
+                        // which tries to find canvases that don't exist yet!
+                        // We need to prevent this and manually initialize after canvases exist
+
+                        // Create engine without auto-initialization
+                        sys.engine = Object.create(RealHolographicSystem.prototype);
+                        sys.engine.visualizers = [];
+                        sys.engine.currentVariant = 0;
+                        sys.engine.baseVariants = 30;
+                        sys.engine.totalVariants = 30;
+                        sys.engine.isActive = false;
+                        sys.engine.audioEnabled = false; // Disable audio to prevent conflicts
+                        sys.engine.audioContext = null;
+                        sys.engine.analyser = null;
+                        sys.engine.frequencyData = null;
+                        sys.engine.audioData = { bass: 0, mid: 0, high: 0 };
+                        sys.engine.variantNames = [
+                            'TETRAHEDRON LATTICE', 'TETRAHEDRON FIELD', 'TETRAHEDRON MATRIX', 'TETRAHEDRON RESONANCE',
+                            'HYPERCUBE LATTICE', 'HYPERCUBE FIELD', 'HYPERCUBE MATRIX', 'HYPERCUBE QUANTUM',
+                            'SPHERE LATTICE', 'SPHERE FIELD', 'SPHERE MATRIX', 'SPHERE RESONANCE',
+                            'TORUS LATTICE', 'TORUS FIELD', 'TORUS MATRIX', 'TORUS QUANTUM',
+                            'KLEIN BOTTLE LATTICE', 'KLEIN BOTTLE FIELD', 'KLEIN BOTTLE MATRIX', 'KLEIN BOTTLE QUANTUM',
+                            'FRACTAL LATTICE', 'FRACTAL FIELD', 'FRACTAL QUANTUM',
+                            'WAVE LATTICE', 'WAVE FIELD', 'WAVE QUANTUM',
+                            'CRYSTAL LATTICE', 'CRYSTAL FIELD', 'CRYSTAL MATRIX', 'CRYSTAL QUANTUM'
+                        ];
+
+                        // Override methods to prevent audio initialization
+                        sys.engine.initAudio = () => {};
+                        sys.engine.updateAudio = () => {};
+
+                        // NOW manually call initialize since canvases exist
+                        sys.engine.initialize();
+
                         this.updateSystemParameters(sys.engine);
                     }
 
