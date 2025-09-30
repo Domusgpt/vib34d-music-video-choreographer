@@ -893,10 +893,16 @@
                 this.startAudioLoop();
             }
 
-            loadAudioFile(file) {
+            async loadAudioFile(file) {
                 if (!file) return;
 
                 const url = URL.createObjectURL(file);
+
+                // CRITICAL: Resume AudioContext (required for mobile browsers)
+                if (this.audioContext.state === 'suspended') {
+                    await this.audioContext.resume();
+                    console.log('🎵 AudioContext resumed');
+                }
 
                 if (this.audioElement) {
                     this.audioElement.pause();
@@ -906,17 +912,34 @@
                 this.audioElement = new Audio(url);
                 this.audioElement.crossOrigin = 'anonymous';
 
+                // CRITICAL: Disconnect old source to prevent errors
                 if (this.audioSource) {
-                    this.audioSource.disconnect();
+                    try {
+                        this.audioSource.disconnect();
+                    } catch (e) {
+                        console.warn('Could not disconnect old audio source:', e);
+                    }
                 }
 
-                this.audioSource = this.audioContext.createMediaElementSource(this.audioElement);
-                this.audioSource.connect(this.analyser);
-                this.analyser.connect(this.audioContext.destination);
+                // Create new source and connect to destination (speakers)
+                try {
+                    this.audioSource = this.audioContext.createMediaElementSource(this.audioElement);
+                    this.audioSource.connect(this.analyser);
+                    this.analyser.connect(this.audioContext.destination);
+                    console.log('🎵 Audio connected to speakers');
+                } catch (error) {
+                    console.error('Failed to create audio source:', error);
+                    // If createMediaElementSource fails, try direct playback
+                    console.log('🎵 Using direct audio playback (no analysis)');
+                }
 
                 this.audioElement.addEventListener('loadedmetadata', () => {
                     this.duration = this.audioElement.duration;
                     console.log(`🎵 Audio loaded: ${this.duration.toFixed(2)}s`);
+                });
+
+                this.audioElement.addEventListener('error', (e) => {
+                    console.error('Audio element error:', e);
                 });
             }
 
@@ -986,10 +1009,25 @@
                 }
             }
 
-            play() {
-                if (this.audioElement) {
-                    this.audioElement.play();
+            async play() {
+                if (!this.audioElement) {
+                    console.warn('⚠️ No audio file loaded. Please upload an MP3 file first.');
+                    return;
+                }
+
+                // CRITICAL: Resume AudioContext on user interaction (mobile requirement)
+                if (this.audioContext.state === 'suspended') {
+                    await this.audioContext.resume();
+                    console.log('🎵 AudioContext resumed on play');
+                }
+
+                try {
+                    await this.audioElement.play();
                     this.isPlaying = true;
+                    console.log('▶️ Audio playing');
+                } catch (error) {
+                    console.error('Failed to play audio:', error);
+                    alert('Failed to play audio. Please try again or check browser permissions.');
                 }
             }
 
