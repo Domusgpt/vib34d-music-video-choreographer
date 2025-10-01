@@ -1,0 +1,1501 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VIB34D AI Conductor Console</title>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: 'Orbitron', sans-serif;
+            background: radial-gradient(circle at top left, rgba(0, 255, 200, 0.15), rgba(0, 0, 0, 0.95));
+            color: #e0faff;
+            height: 100vh;
+            overflow: hidden;
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 18px;
+            padding: 18px;
+        }
+
+        #visualizer-shell {
+            position: relative;
+            border: 2px solid rgba(0, 255, 255, 0.35);
+            border-radius: 18px;
+            overflow: hidden;
+            background: rgba(0, 0, 0, 0.75);
+            box-shadow: 0 0 45px rgba(0, 255, 255, 0.12);
+        }
+
+        #visualizer-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+        }
+
+        .holographic-layers {
+            width: 100%;
+            height: 100%;
+            position: relative;
+        }
+
+        .holographic-layers canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            mix-blend-mode: screen;
+        }
+
+        #console-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            border: 2px solid rgba(0, 255, 255, 0.25);
+            border-radius: 18px;
+            padding: 18px;
+            background: rgba(10, 12, 18, 0.85);
+            backdrop-filter: blur(16px);
+            box-shadow: 0 0 40px rgba(0, 255, 255, 0.08);
+        }
+
+        #console-panel h1 {
+            font-size: 22px;
+            text-transform: uppercase;
+            letter-spacing: 3px;
+            margin: 0;
+            background: linear-gradient(90deg, #00faff, #8b5cff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        #state-summary {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 10px;
+            font-size: 12px;
+            text-transform: uppercase;
+        }
+
+        #autopilot-state {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            padding: 12px;
+            border-radius: 12px;
+            background: rgba(6, 18, 28, 0.78);
+            border: 1px solid rgba(0, 255, 200, 0.18);
+        }
+
+        .autopilot-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            text-transform: uppercase;
+            letter-spacing: 1.6px;
+            font-size: 11px;
+            color: #8ef6ff;
+        }
+
+        #autopilot-status {
+            font-size: 10px;
+            letter-spacing: 1.2px;
+            opacity: 0.75;
+        }
+
+        .autopilot-controls {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        #autopilot-toggle {
+            padding: 6px 12px;
+            font-size: 10px;
+            letter-spacing: 1.2px;
+            text-transform: uppercase;
+            border-radius: 999px;
+            border: 1px solid rgba(0, 255, 255, 0.35);
+            background: rgba(0, 255, 255, 0.14);
+            color: #9ef6ff;
+            cursor: pointer;
+            transition: background 0.2s ease, transform 0.2s ease;
+        }
+
+        #autopilot-toggle:hover:not(:disabled) {
+            background: rgba(0, 255, 255, 0.24);
+            transform: translateY(-1px);
+        }
+
+        #autopilot-toggle:disabled {
+            opacity: 0.45;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        #autopilot-baselines {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            font-size: 11px;
+            color: #c8f9ff;
+            opacity: 0.82;
+        }
+
+        #autopilot-baselines span {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        #autopilot-programs {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        #autopilot-programs.empty::after {
+            content: 'Autopilot is listening. Ask for a routine or let audio drive to see activity.';
+            font-size: 11px;
+            opacity: 0.6;
+            letter-spacing: 0.6px;
+            line-height: 1.4;
+        }
+
+        .autopilot-program {
+            border-radius: 10px;
+            background: rgba(10, 26, 38, 0.75);
+            border: 1px solid rgba(0, 255, 200, 0.16);
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            font-size: 11px;
+        }
+
+        .autopilot-program.inactive {
+            opacity: 0.55;
+            border-style: dashed;
+        }
+
+        .autopilot-program strong {
+            text-transform: uppercase;
+            letter-spacing: 1.2px;
+            color: #9fffe0;
+        }
+
+        .autopilot-program .autopilot-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            opacity: 0.75;
+        }
+
+        .autopilot-program .autopilot-summary {
+            font-size: 10px;
+            opacity: 0.72;
+            line-height: 1.4;
+        }
+
+        .autopilot-program button {
+            align-self: flex-start;
+            margin-top: 6px;
+            padding: 6px 12px;
+            font-size: 10px;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            border-radius: 999px;
+            border: 1px solid rgba(0, 255, 200, 0.28);
+            background: rgba(0, 255, 200, 0.12);
+            color: #d3fffb;
+            cursor: pointer;
+            transition: background 0.2s ease, transform 0.2s ease;
+        }
+
+        .autopilot-program button:hover:not(:disabled) {
+            background: rgba(0, 255, 200, 0.24);
+            transform: translateY(-1px);
+        }
+
+        .autopilot-program button:disabled {
+            opacity: 0.45;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        #layer-state {
+            margin-top: 12px;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 10px;
+        }
+
+        .layer-card {
+            padding: 10px 12px;
+            border-radius: 12px;
+            background: rgba(18, 24, 38, 0.85);
+            border: 1px solid rgba(0, 255, 255, 0.18);
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            min-height: 88px;
+        }
+
+        .layer-card h4 {
+            margin: 0;
+            font-size: 11px;
+            letter-spacing: 1.6px;
+            text-transform: uppercase;
+            color: #8aa8ff;
+        }
+
+        .layer-metric {
+            display: flex;
+            justify-content: space-between;
+            font-size: 11px;
+            color: #c8e8ff;
+        }
+
+        .layer-metric strong {
+            font-weight: 600;
+            color: #f4fbff;
+        }
+
+        .state-chip {
+            padding: 12px;
+            border-radius: 12px;
+            background: rgba(0, 255, 255, 0.08);
+            border: 1px solid rgba(0, 255, 255, 0.2);
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .state-chip span.value {
+            font-size: 18px;
+            color: #ffffff;
+        }
+
+        #conversation-log {
+            flex: 1;
+            background: rgba(8, 12, 20, 0.85);
+            border: 1px solid rgba(0, 255, 255, 0.15);
+            border-radius: 12px;
+            padding: 12px;
+            overflow-y: auto;
+            font-size: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .message {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            padding: 10px;
+            border-radius: 10px;
+        }
+
+        .message.user {
+            background: rgba(139, 92, 255, 0.2);
+            align-self: flex-end;
+            border: 1px solid rgba(139, 92, 255, 0.4);
+        }
+
+        .message.system {
+            background: rgba(0, 255, 255, 0.12);
+            border: 1px solid rgba(0, 255, 255, 0.35);
+        }
+
+        .message .meta {
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            opacity: 0.7;
+        }
+
+        #audio-insights {
+            border: 1px solid rgba(0, 255, 255, 0.18);
+            border-radius: 14px;
+            padding: 14px;
+            background: rgba(0, 28, 35, 0.45);
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        #audio-insights h2 {
+            margin: 0;
+            font-size: 13px;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            color: #74f6ff;
+        }
+
+        #audio-source-tools {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        #audio-source-tools label {
+            font-size: 11px;
+            letter-spacing: 1px;
+            opacity: 0.75;
+        }
+
+        #audio-upload {
+            background: rgba(0, 255, 255, 0.08);
+            border: 1px dashed rgba(0, 255, 255, 0.3);
+            border-radius: 10px;
+            padding: 8px 12px;
+            color: #aefbff;
+            font-family: inherit;
+            font-size: 11px;
+            letter-spacing: 1px;
+        }
+
+        #mic-toggle {
+            background: rgba(139, 92, 255, 0.18);
+            border: 1px solid rgba(139, 92, 255, 0.35);
+            border-radius: 10px;
+            padding: 8px 14px;
+            color: #dec9ff;
+            font-family: inherit;
+            font-size: 11px;
+            letter-spacing: 1px;
+            cursor: pointer;
+            transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+        }
+
+        #mic-toggle:hover:not(:disabled) {
+            transform: translateY(-1px);
+            box-shadow: 0 10px 20px rgba(139, 92, 255, 0.25);
+        }
+
+        #mic-toggle.active {
+            background: rgba(139, 92, 255, 0.35);
+            box-shadow: 0 0 16px rgba(139, 92, 255, 0.35);
+            color: #fff;
+        }
+
+        #mic-toggle:disabled {
+            opacity: 0.45;
+            cursor: not-allowed;
+            box-shadow: none;
+        }
+
+        #audio-player {
+            width: 100%;
+            border-radius: 10px;
+            background: rgba(4, 12, 20, 0.65);
+            border: 1px solid rgba(0, 255, 255, 0.15);
+        }
+
+        #audio-features {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 10px;
+        }
+
+        .audio-feature {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            font-size: 11px;
+        }
+
+        .audio-feature .label {
+            display: flex;
+            justify-content: space-between;
+            letter-spacing: 1px;
+        }
+
+        .audio-feature .meter {
+            height: 6px;
+            border-radius: 999px;
+            overflow: hidden;
+            background: rgba(0, 255, 255, 0.1);
+        }
+
+        .audio-feature .meter span {
+            display: block;
+            height: 100%;
+            border-radius: inherit;
+            background: linear-gradient(90deg, rgba(0, 255, 255, 0.3), rgba(139, 92, 255, 0.7));
+            transition: width 0.18s ease;
+        }
+
+        #audio-section-status {
+            font-size: 11px;
+            opacity: 0.65;
+            letter-spacing: 1px;
+        }
+
+        #audio-bindings {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            max-height: 160px;
+            overflow-y: auto;
+        }
+
+        #audio-surfaces {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            max-height: 160px;
+            overflow-y: auto;
+        }
+
+        .binding-card {
+            padding: 10px;
+            border-radius: 10px;
+            background: rgba(12, 34, 46, 0.55);
+            border: 1px solid rgba(0, 255, 255, 0.18);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+            font-size: 11px;
+        }
+
+        .binding-card strong {
+            font-size: 12px;
+            letter-spacing: 1px;
+        }
+
+        .binding-card button {
+            border: 1px solid rgba(255, 99, 132, 0.45);
+            border-radius: 8px;
+            background: rgba(255, 99, 132, 0.12);
+            color: #ff9fb3;
+            padding: 4px 8px;
+            font-size: 10px;
+            letter-spacing: 1px;
+            cursor: pointer;
+        }
+
+        .binding-card button:hover {
+            background: rgba(255, 99, 132, 0.24);
+        }
+
+        #audio-bindings.empty::after {
+            content: 'No audio bindings yet. Ask the conductor to map bass, beats, or energy to parameters.';
+            font-size: 11px;
+            opacity: 0.6;
+            line-height: 1.4;
+        }
+
+        #audio-surfaces.empty::after {
+            content: 'No XY surfaces yet. Describe how two audio features should steer parameters together.';
+            font-size: 11px;
+            opacity: 0.6;
+            line-height: 1.4;
+        }
+
+        .surface-card {
+            padding: 12px;
+            border-radius: 10px;
+            background: rgba(20, 12, 40, 0.6);
+            border: 1px solid rgba(139, 92, 255, 0.3);
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            font-size: 11px;
+        }
+
+        .surface-card .surface-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .surface-card .surface-header strong {
+            letter-spacing: 1px;
+        }
+
+        .surface-card .axes {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 6px;
+            opacity: 0.8;
+        }
+
+        .surface-card .axes span {
+            display: block;
+        }
+
+        .surface-card .surface-targets {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            opacity: 0.85;
+        }
+
+        .surface-card .surface-targets strong {
+            letter-spacing: 1px;
+        }
+
+        .surface-card button {
+            align-self: flex-start;
+            border: 1px solid rgba(255, 99, 132, 0.4);
+            border-radius: 8px;
+            background: rgba(255, 99, 132, 0.18);
+            color: #ffc0ca;
+            padding: 4px 8px;
+            font-size: 10px;
+            letter-spacing: 1px;
+            cursor: pointer;
+        }
+
+        .surface-card button:hover {
+            background: rgba(255, 99, 132, 0.28);
+        }
+
+        #audio-programs {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        #audio-programs.empty::after {
+            content: 'No section programs yet. Ask for an audio strategy preset to engage verse/chorus dynamics.';
+            font-size: 11px;
+            opacity: 0.6;
+            line-height: 1.4;
+        }
+
+        .program-card {
+            padding: 12px;
+            border-radius: 10px;
+            background: rgba(10, 30, 42, 0.6);
+            border: 1px solid rgba(0, 255, 180, 0.28);
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            font-size: 11px;
+        }
+
+        .program-card .program-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .program-card .program-header strong {
+            font-size: 12px;
+            letter-spacing: 1px;
+        }
+
+        .program-card .program-header span {
+            font-size: 10px;
+            text-transform: uppercase;
+            opacity: 0.7;
+            letter-spacing: 1px;
+        }
+
+        .program-card .program-targets {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .program-card .program-targets div {
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+        }
+
+        .program-card .program-targets strong {
+            letter-spacing: 1px;
+        }
+
+        .program-card .program-meta {
+            font-size: 10px;
+            opacity: 0.7;
+            letter-spacing: 0.5px;
+        }
+
+        .audio-subheading {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            opacity: 0.65;
+        }
+
+        form#prompt-form {
+            display: flex;
+            gap: 10px;
+        }
+
+        #prompt-input {
+            flex: 1;
+            padding: 14px;
+            border-radius: 12px;
+            border: 1px solid rgba(0, 255, 255, 0.3);
+            background: rgba(0, 10, 18, 0.9);
+            color: #e6feff;
+            font-size: 14px;
+            font-family: 'Orbitron', sans-serif;
+            letter-spacing: 1px;
+        }
+
+        #prompt-input:focus {
+            outline: none;
+            border-color: #8b5cff;
+            box-shadow: 0 0 15px rgba(139, 92, 255, 0.35);
+        }
+
+        #send-btn {
+            background: linear-gradient(135deg, #00faff, #8b5cff);
+            border: none;
+            border-radius: 12px;
+            padding: 0 24px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #020208;
+            cursor: pointer;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        #send-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 10px 20px rgba(0, 250, 255, 0.25);
+        }
+
+        #quick-commands {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 10px;
+        }
+
+        .quick-btn {
+            background: rgba(0, 255, 255, 0.12);
+            border: 1px solid rgba(0, 255, 255, 0.3);
+            border-radius: 12px;
+            padding: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-size: 11px;
+            cursor: pointer;
+            transition: transform 0.2s ease, background 0.2s ease;
+        }
+
+        .quick-btn:hover {
+            transform: translateY(-1px);
+            background: rgba(0, 255, 255, 0.18);
+        }
+
+        @media (max-width: 1100px) {
+            body {
+                grid-template-columns: 1fr;
+                grid-template-rows: 1fr 1fr;
+                height: auto;
+                overflow: auto;
+            }
+
+            #visualizer-shell {
+                min-height: 320px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <section id="visualizer-shell">
+        <div id="visualizer-container">
+            <div class="holographic-layers">
+                <canvas id="background-canvas"></canvas>
+                <canvas id="shadow-canvas"></canvas>
+                <canvas id="content-canvas"></canvas>
+                <canvas id="highlight-canvas"></canvas>
+                <canvas id="accent-canvas"></canvas>
+            </div>
+        </div>
+    </section>
+    <section id="console-panel">
+        <h1>AI Conductor Console</h1>
+        <div id="state-summary"></div>
+        <div id="autopilot-state">
+            <div class="autopilot-header">
+                <h3>Autopilot Programs</h3>
+                <div class="autopilot-controls">
+                    <span id="autopilot-status">Idle</span>
+                    <button id="autopilot-toggle" type="button" disabled>Autopilot Offline</button>
+                </div>
+            </div>
+            <div id="autopilot-baselines"></div>
+            <div id="autopilot-programs" class="empty"></div>
+        </div>
+        <div id="layer-state"></div>
+        <div id="conversation-log"></div>
+        <form id="prompt-form">
+            <input id="prompt-input" type="text" placeholder="Describe the next move…" autocomplete="off" />
+            <button id="send-btn" type="submit">Send</button>
+        </form>
+        <div id="quick-commands">
+            <button class="quick-btn" data-prompt="give me a calm ambient bridge with softer chaos">Calm Bridge</button>
+            <button class="quick-btn" data-prompt="push into neon cyberpunk mode and raise speed">Neon Surge</button>
+            <button class="quick-btn" data-prompt="prep variation 18 for the drop">Variation 18</button>
+            <button class="quick-btn" data-prompt="fade hue from 40 to 300 over 12 seconds">Spectrum Fade</button>
+            <button class="quick-btn" data-prompt="let the bass drive grid density and highs shimmer the hue">Audio Grid</button>
+            <button class="quick-btn" data-prompt="activate a balanced audio strategy that maps bass to density and color swaps for the chorus">Balanced Strategy</button>
+        </div>
+        <div id="audio-insights">
+            <h2>Audio Intelligence</h2>
+            <div id="audio-section-status">Upload a track or let the microphone feed drive the choreography.</div>
+            <div id="audio-source-tools">
+                <label for="audio-upload">Load Track</label>
+                <input type="file" id="audio-upload" accept="audio/*">
+                <button id="mic-toggle" type="button">Enable Microphone</button>
+            </div>
+            <audio id="audio-player" controls></audio>
+            <div class="audio-subheading">Feature Telemetry</div>
+            <div id="audio-features"></div>
+            <div class="audio-subheading">Feature Bindings</div>
+            <div id="audio-bindings" class="empty"></div>
+            <div class="audio-subheading">XY Surfaces</div>
+            <div id="audio-surfaces" class="empty"></div>
+            <div class="audio-subheading">Section Programs</div>
+            <div id="audio-programs" class="empty"></div>
+        </div>
+    </section>
+
+    <script type="module">
+        import { VIB34DIntegratedEngine } from './src/core/Engine.js';
+        import { DynamicControlEngine } from './src/llm/DynamicControlEngine.js';
+        import { LLMCommandRouter } from './src/llm/DynamicCommandRouter.js';
+        import { LLMAudioChoreographer } from './src/llm/LLMAudioChoreographer.js';
+        import { LLMAgentAutoPilot } from './src/llm/LLMAgentAutoPilot.js';
+
+        const engine = new VIB34DIntegratedEngine();
+        const dynamicEngine = new DynamicControlEngine(engine);
+        const router = new LLMCommandRouter();
+        const audioChoreographer = new LLMAudioChoreographer(dynamicEngine);
+        dynamicEngine.attachAudioChoreographer(audioChoreographer);
+        const autopilot = new LLMAgentAutoPilot(dynamicEngine, audioChoreographer);
+        dynamicEngine.attachAutoPilot(autopilot);
+
+        const conversationLog = document.getElementById('conversation-log');
+        const stateSummary = document.getElementById('state-summary');
+        const layerState = document.getElementById('layer-state');
+        const autopilotStatus = document.getElementById('autopilot-status');
+        const autopilotBaselines = document.getElementById('autopilot-baselines');
+        const autopilotPrograms = document.getElementById('autopilot-programs');
+        const autopilotToggle = document.getElementById('autopilot-toggle');
+        const promptForm = document.getElementById('prompt-form');
+        const promptInput = document.getElementById('prompt-input');
+        const quickButtons = Array.from(document.querySelectorAll('.quick-btn'));
+        const audioUpload = document.getElementById('audio-upload');
+        const audioPlayer = document.getElementById('audio-player');
+        const audioFeatures = document.getElementById('audio-features');
+        const audioBindings = document.getElementById('audio-bindings');
+        const audioSurfaces = document.getElementById('audio-surfaces');
+        const audioPrograms = document.getElementById('audio-programs');
+        const audioStatus = document.getElementById('audio-section-status');
+        const micToggle = document.getElementById('mic-toggle');
+
+        if (autopilotToggle) {
+            autopilotToggle.dataset.mode = 'offline';
+        }
+
+        function appendMessage(role, message, meta) {
+            const wrapper = document.createElement('div');
+            wrapper.className = `message ${role}`;
+            if (meta) {
+                const metaEl = document.createElement('span');
+                metaEl.className = 'meta';
+                metaEl.textContent = meta;
+                wrapper.appendChild(metaEl);
+            }
+            const textEl = document.createElement('span');
+            textEl.textContent = message;
+            wrapper.appendChild(textEl);
+            conversationLog.appendChild(wrapper);
+            conversationLog.scrollTo({ top: conversationLog.scrollHeight, behavior: 'smooth' });
+        }
+
+        function formatPercent(value) {
+            return `${Math.round(Math.min(Math.max(value, 0), 1) * 100)}%`;
+        }
+
+        function formatNumber(value, digits = 2) {
+            return typeof value === 'number' ? value.toFixed(digits) : value;
+        }
+
+        function formatTimeAgo(ms) {
+            if (ms === null || ms === undefined) return '—';
+            if (ms < 600) return '<1s ago';
+            if (ms < 60000) {
+                const seconds = ms / 1000;
+                return `${seconds < 10 ? seconds.toFixed(1) : Math.round(seconds)}s ago`;
+            }
+            const minutes = ms / 60000;
+            return `${minutes < 10 ? minutes.toFixed(1) : Math.round(minutes)}m ago`;
+        }
+
+        function formatCooldown(ms) {
+            if (!ms || ms <= 0) return 'ready';
+            if (ms < 1000) return '<1s';
+            if (ms < 60000) {
+                const seconds = ms / 1000;
+                return `${seconds < 10 ? seconds.toFixed(1) : Math.round(seconds)}s`;
+            }
+            const minutes = ms / 60000;
+            return `${minutes < 10 ? minutes.toFixed(1) : Math.round(minutes)}m`;
+        }
+
+        function setMicButton(active) {
+            if (!micToggle || micToggle.dataset.locked === 'true') return;
+            micToggle.dataset.active = active ? 'true' : 'false';
+            micToggle.classList.toggle('active', active);
+            micToggle.textContent = active ? 'Disable Microphone' : 'Enable Microphone';
+        }
+
+        function updateAutopilotToggle(state) {
+            if (!autopilotToggle) return;
+            if (!state) {
+                autopilotToggle.disabled = true;
+                autopilotToggle.textContent = 'Autopilot Offline';
+                autopilotToggle.dataset.mode = 'offline';
+                return;
+            }
+
+            autopilotToggle.disabled = false;
+            if (state.enabled) {
+                autopilotToggle.textContent = 'Pause Autopilot';
+                autopilotToggle.dataset.mode = 'enabled';
+            } else {
+                autopilotToggle.textContent = 'Resume Autopilot';
+                autopilotToggle.dataset.mode = 'disabled';
+            }
+        }
+
+        function renderAudioStatus(audioState) {
+            const fallback = 'No audio source connected. Enable the microphone or upload a track to drive choreography.';
+            if (!audioState) {
+                audioStatus.textContent = fallback;
+                setMicButton(false);
+                return;
+            }
+
+            const { source = { type: 'none' }, features } = audioState;
+            let message = fallback;
+
+            switch (source?.type) {
+                case 'microphone':
+                    message = 'Listening through the microphone in real time.';
+                    setMicButton(true);
+                    break;
+                case 'track': {
+                    const rawName = source.trackName || '';
+                    const fileName = rawName ? rawName.split('/').pop().split('?')[0] : 'Loaded track';
+                    message = source.isPlaying ? `Playing ${fileName}.` : `${fileName} ready (paused).`;
+                    setMicButton(false);
+                    break;
+                }
+                case 'element':
+                    message = source.isPlaying
+                        ? 'Audio element playing.'
+                        : 'Audio element ready. Press play to feed the engine.';
+                    setMicButton(false);
+                    break;
+                default:
+                    message = fallback;
+                    setMicButton(false);
+            }
+
+            if (features?.section) {
+                const confidence = Math.round((features.sectionConfidence ?? 0) * 100);
+                message += ` Section ${features.section.toUpperCase()} · confidence ${confidence}%`;
+            }
+
+            audioStatus.textContent = message;
+        }
+
+        function renderAudioFeatures(data) {
+            audioFeatures.innerHTML = '';
+            if (!data) {
+                audioFeatures.classList.add('empty');
+                return;
+            }
+            audioFeatures.classList.remove('empty');
+
+            const featureConfig = [
+                ['bass', 'Bass Drive'],
+                ['mid', 'Mid Presence'],
+                ['high', 'High Spark'],
+                ['energy', 'Energy'],
+                ['transient', 'Impact'],
+                ['beatStrength', 'Beat Pulse'],
+            ];
+
+            featureConfig.forEach(([key, label]) => {
+                const value = data[key] ?? 0;
+                const item = document.createElement('div');
+                item.className = 'audio-feature';
+                const title = document.createElement('div');
+                title.className = 'label';
+                title.innerHTML = `<span>${label}</span><span>${formatPercent(value)}</span>`;
+                const meter = document.createElement('div');
+                meter.className = 'meter';
+                const fill = document.createElement('span');
+                fill.style.width = formatPercent(value);
+                meter.appendChild(fill);
+                item.appendChild(title);
+                item.appendChild(meter);
+                audioFeatures.appendChild(item);
+            });
+        }
+
+        function renderBindings(bindings = []) {
+            audioBindings.innerHTML = '';
+            if (!bindings.length) {
+                audioBindings.classList.add('empty');
+                return;
+            }
+            audioBindings.classList.remove('empty');
+            bindings.forEach(binding => {
+                const detailParts = [`mode ${binding.mode}`];
+                if (binding.transform && binding.transform !== 'linear') {
+                    detailParts.push(binding.transform);
+                }
+                if (binding.invert) {
+                    detailParts.push('inverted');
+                }
+                if (typeof binding.scale === 'number') {
+                    detailParts.push(`scale ${formatNumber(binding.scale)}`);
+                }
+                if (typeof binding.offset === 'number' && binding.offset !== 0) {
+                    detailParts.push(`offset ${formatNumber(binding.offset)}`);
+                }
+                if (typeof binding.min === 'number') {
+                    detailParts.push(`min ${formatNumber(binding.min)}`);
+                }
+                if (typeof binding.max === 'number') {
+                    detailParts.push(`max ${formatNumber(binding.max)}`);
+                }
+
+                const card = document.createElement('div');
+                card.className = 'binding-card';
+                const details = document.createElement('div');
+                details.innerHTML = `<strong>${binding.feature.toUpperCase()} → ${binding.target}</strong><div>${detailParts.join(' · ')}</div>`;
+                const button = document.createElement('button');
+                button.textContent = 'Remove';
+                button.addEventListener('click', () => {
+                    dynamicEngine.enqueueIntents([{ action: 'removeAudioBinding', bindingId: binding.id }]);
+                });
+                card.appendChild(details);
+                card.appendChild(button);
+                audioBindings.appendChild(card);
+            });
+        }
+
+        function renderSurfaces(surfaces = []) {
+            audioSurfaces.innerHTML = '';
+            if (!surfaces.length) {
+                audioSurfaces.classList.add('empty');
+                return;
+            }
+            audioSurfaces.classList.remove('empty');
+
+            const describeAxis = (axis, label) => {
+                const axisParts = [`${axis.feature.toUpperCase()}`, axis.transform];
+                if (axis.invert) axisParts.push('inverted');
+                if (typeof axis.scale === 'number') axisParts.push(`×${formatNumber(axis.scale)}`);
+                if (typeof axis.offset === 'number' && axis.offset !== 0) {
+                    axisParts.push(axis.offset >= 0 ? `+${formatNumber(axis.offset)}` : formatNumber(axis.offset));
+                }
+                if (typeof axis.min === 'number') axisParts.push(`min ${formatNumber(axis.min)}`);
+                if (typeof axis.max === 'number') axisParts.push(`max ${formatNumber(axis.max)}`);
+                return `${label}: ${axisParts.join(' · ')}`;
+            };
+
+            surfaces.forEach(surface => {
+                const card = document.createElement('div');
+                card.className = 'surface-card';
+
+                const header = document.createElement('div');
+                header.className = 'surface-header';
+                const title = document.createElement('strong');
+                title.textContent =
+                    surface.label || `${surface.axes.x.feature.toUpperCase()}↔${surface.axes.y.feature.toUpperCase()}`;
+                const removeBtn = document.createElement('button');
+                removeBtn.textContent = 'Remove';
+                removeBtn.addEventListener('click', () => {
+                    dynamicEngine.enqueueIntents([{ action: 'removeAudioSurface', surfaceId: surface.id }]);
+                });
+                header.appendChild(title);
+                header.appendChild(removeBtn);
+                card.appendChild(header);
+
+                const axes = document.createElement('div');
+                axes.className = 'axes';
+                axes.innerHTML = `<span>${describeAxis(surface.axes.x, 'X')}</span><span>${describeAxis(surface.axes.y, 'Y')}</span>`;
+                card.appendChild(axes);
+
+                const targetsContainer = document.createElement('div');
+                targetsContainer.className = 'surface-targets';
+                surface.targets.forEach(target => {
+                    const detailParts = [target.mode === 'additive' ? 'additive' : 'absolute'];
+                    if (typeof target.base === 'number' && target.base !== 0) detailParts.push(`base ${formatNumber(target.base)}`);
+                    if (typeof target.xWeight === 'number' && target.xWeight !== 0) detailParts.push(`x ${formatNumber(target.xWeight)}`);
+                    if (typeof target.yWeight === 'number' && target.yWeight !== 0) detailParts.push(`y ${formatNumber(target.yWeight)}`);
+                    if (typeof target.xyWeight === 'number' && target.xyWeight !== 0) detailParts.push(`xy ${formatNumber(target.xyWeight)}`);
+                    if (typeof target.bias === 'number' && target.bias !== 0) detailParts.push(`bias ${formatNumber(target.bias)}`);
+                    if (typeof target.scale === 'number' && target.scale !== 1) detailParts.push(`scale ${formatNumber(target.scale)}`);
+                    if (typeof target.offset === 'number' && target.offset !== 0) detailParts.push(`offset ${formatNumber(target.offset)}`);
+                    if (typeof target.min === 'number') detailParts.push(`min ${formatNumber(target.min)}`);
+                    if (typeof target.max === 'number') detailParts.push(`max ${formatNumber(target.max)}`);
+
+                    const targetLine = document.createElement('div');
+                    targetLine.innerHTML = `<strong>${target.target}</strong> <span>${detailParts.join(' · ')}</span>`;
+                    targetsContainer.appendChild(targetLine);
+                });
+                card.appendChild(targetsContainer);
+
+                audioSurfaces.appendChild(card);
+            });
+        }
+
+        function renderPrograms(programs = []) {
+            audioPrograms.innerHTML = '';
+            if (!programs || programs.length === 0) {
+                audioPrograms.classList.add('empty');
+                return;
+            }
+            audioPrograms.classList.remove('empty');
+
+            programs.forEach(program => {
+                const card = document.createElement('div');
+                card.className = 'program-card';
+
+                const header = document.createElement('div');
+                header.className = 'program-header';
+                const title = document.createElement('strong');
+                title.textContent = (program.label || program.section || 'Program').toUpperCase();
+                const section = document.createElement('span');
+                section.textContent = (program.section || 'any').toUpperCase();
+                header.appendChild(title);
+                header.appendChild(section);
+                card.appendChild(header);
+
+                if (Array.isArray(program.targets) && program.targets.length) {
+                    const targets = document.createElement('div');
+                    targets.className = 'program-targets';
+                    program.targets.forEach(target => {
+                        const row = document.createElement('div');
+                        const name = document.createElement('strong');
+                        name.textContent = target.target;
+                        const detail = document.createElement('span');
+                        const rest = typeof target.rest === 'number' ? formatNumber(target.rest) : target.rest;
+                        const value = typeof target.value === 'number' ? formatNumber(target.value) : target.value;
+                        detail.textContent = rest !== undefined && value !== undefined ? `${rest} → ${value}` : value ?? '';
+                        row.appendChild(name);
+                        row.appendChild(detail);
+                        targets.appendChild(row);
+                    });
+                    card.appendChild(targets);
+                }
+
+                if (typeof program.crossfade === 'number' && program.crossfade > 0) {
+                    const meta = document.createElement('div');
+                    meta.className = 'program-meta';
+                    meta.textContent = `Crossfade ${Math.round(program.crossfade * 100)}% when inactive`;
+                    card.appendChild(meta);
+                }
+
+                audioPrograms.appendChild(card);
+            });
+        }
+
+        function renderLayerState(layers = []) {
+            if (!layerState) return;
+            layerState.innerHTML = '';
+            if (!layers || layers.length === 0) {
+                const empty = document.createElement('div');
+                empty.className = 'layer-card';
+                const title = document.createElement('h4');
+                title.textContent = 'Layers';
+                const message = document.createElement('span');
+                message.textContent = 'Layer telemetry unavailable';
+                message.style.fontSize = '11px';
+                message.style.opacity = '0.7';
+                empty.appendChild(title);
+                empty.appendChild(message);
+                layerState.appendChild(empty);
+                return;
+            }
+
+            layers.forEach(layer => {
+                const card = document.createElement('div');
+                card.className = 'layer-card';
+                const title = document.createElement('h4');
+                title.textContent = layer.label || layer.key;
+                card.appendChild(title);
+
+                const metrics = [
+                    ['Opacity', layer.state.opacity, 'percent'],
+                    ['Intensity', layer.state.intensity, 'decimal'],
+                    ['Reactivity', layer.state.reactivity, 'decimal'],
+                ];
+
+                metrics.forEach(([label, value, display]) => {
+                    if (value === undefined || value === null) return;
+                    const row = document.createElement('div');
+                    row.className = 'layer-metric';
+                    const labelEl = document.createElement('span');
+                    labelEl.textContent = label;
+                    const valueEl = document.createElement('strong');
+                    valueEl.textContent = display === 'percent' ? formatPercent(value) : formatNumber(value, 2);
+                    row.appendChild(labelEl);
+                    row.appendChild(valueEl);
+                    card.appendChild(row);
+                });
+
+                layerState.appendChild(card);
+            });
+        }
+
+        function renderAutopilot(state) {
+            if (!autopilotPrograms || !autopilotStatus || !autopilotBaselines) return;
+            updateAutopilotToggle(state);
+            autopilotPrograms.innerHTML = '';
+            autopilotBaselines.innerHTML = '';
+
+            if (!state) {
+                autopilotStatus.textContent = 'Offline';
+                const span = document.createElement('span');
+                span.textContent = 'Autopilot inactive';
+                span.style.opacity = '0.6';
+                autopilotBaselines.appendChild(span);
+                autopilotPrograms.classList.add('empty');
+                return;
+            }
+
+            autopilotStatus.textContent = state.enabled ? 'Active' : 'Paused';
+
+            const baselineEntries = [];
+            if (typeof state.baselines?.energy === 'number') {
+                baselineEntries.push(['Energy', formatPercent(state.baselines.energy)]);
+            }
+            if (typeof state.baselines?.bass === 'number') {
+                baselineEntries.push(['Bass', formatPercent(state.baselines.bass)]);
+            }
+            if (state.section) {
+                baselineEntries.push(['Section', state.section.toUpperCase()]);
+            }
+
+            if (baselineEntries.length === 0) {
+                const span = document.createElement('span');
+                span.textContent = 'Awaiting telemetry…';
+                span.style.opacity = '0.6';
+                autopilotBaselines.appendChild(span);
+            } else {
+                baselineEntries.forEach(([label, value]) => {
+                    const span = document.createElement('span');
+                    const labelEl = document.createElement('strong');
+                    labelEl.textContent = label;
+                    const valueEl = document.createElement('span');
+                    valueEl.textContent = value;
+                    span.appendChild(labelEl);
+                    span.appendChild(valueEl);
+                    autopilotBaselines.appendChild(span);
+                });
+            }
+
+            const programs = Array.isArray(state.programs) ? state.programs : [];
+            if (programs.length === 0) {
+                autopilotPrograms.classList.add('empty');
+                return;
+            }
+            autopilotPrograms.classList.remove('empty');
+
+            programs.forEach(program => {
+                const card = document.createElement('div');
+                card.className = 'autopilot-program';
+                if (program.active === false) {
+                    card.classList.add('inactive');
+                }
+
+                const title = document.createElement('strong');
+                title.textContent = program.label || program.id;
+                card.appendChild(title);
+
+                const meta = document.createElement('div');
+                meta.className = 'autopilot-meta';
+
+                const status = document.createElement('span');
+                status.textContent = program.active === false ? 'paused' : 'active';
+                meta.appendChild(status);
+
+                const last = document.createElement('span');
+                last.textContent = `last ${formatTimeAgo(program.lastTriggerMsAgo)}`;
+                meta.appendChild(last);
+
+                const cooldown = document.createElement('span');
+                cooldown.textContent = `cooldown ${formatCooldown(program.cooldownMsRemaining)}`;
+                meta.appendChild(cooldown);
+
+                card.appendChild(meta);
+
+                if (program.lastSummary) {
+                    const summary = document.createElement('div');
+                    summary.className = 'autopilot-summary';
+                    summary.textContent = program.lastSummary;
+                    card.appendChild(summary);
+                }
+
+                const toggleBtn = document.createElement('button');
+                const programActive = program.active !== false;
+                toggleBtn.textContent = programActive ? 'Pause Program' : 'Resume Program';
+                toggleBtn.addEventListener('click', () => {
+                    dynamicEngine.enqueueIntents([
+                        {
+                            action: 'setAutopilotState',
+                            programId: program.id,
+                            programEnabled: !programActive,
+                        },
+                    ]);
+                });
+                card.appendChild(toggleBtn);
+
+                autopilotPrograms.appendChild(card);
+            });
+        }
+
+        function renderState(snapshot) {
+            stateSummary.innerHTML = '';
+            const entries = [
+                ['Variation', `#${snapshot.variation + 1}`],
+                ['Chaos', snapshot.parameters.chaos.toFixed(2)],
+                ['Speed', snapshot.parameters.speed.toFixed(2)],
+                ['Hue', `${Math.round(snapshot.parameters.hue)}°`],
+                ['Intensity', snapshot.parameters.intensity.toFixed(2)],
+                ['Saturation', snapshot.parameters.saturation.toFixed(2)],
+                ['Morph', snapshot.parameters.morphFactor.toFixed(2)],
+                ['Grid', snapshot.parameters.gridDensity.toFixed(1)],
+            ];
+
+            entries.forEach(([label, value]) => {
+                const chip = document.createElement('div');
+                chip.className = 'state-chip';
+                const title = document.createElement('span');
+                title.textContent = label;
+                const valueEl = document.createElement('span');
+                valueEl.className = 'value';
+                valueEl.textContent = value;
+                chip.appendChild(title);
+                chip.appendChild(valueEl);
+                stateSummary.appendChild(chip);
+            });
+
+            if (snapshot.envelopes.length) {
+                const envelopeChip = document.createElement('div');
+                envelopeChip.className = 'state-chip';
+                envelopeChip.innerHTML = '<strong>Envelopes</strong>';
+                snapshot.envelopes.forEach(env => {
+                    const item = document.createElement('div');
+                    item.style.fontSize = '11px';
+                    item.textContent = `${env.target} → ${env.remaining.toFixed(1)}s (${env.easing})`;
+                    envelopeChip.appendChild(item);
+                });
+                stateSummary.appendChild(envelopeChip);
+            }
+
+            if (snapshot.audio) {
+                renderAudioStatus(snapshot.audio);
+                renderAudioFeatures(snapshot.audio.features);
+                renderBindings(snapshot.audio.bindings);
+                renderSurfaces(snapshot.audio.surfaces);
+                renderPrograms(snapshot.audio.strategies);
+            } else {
+                renderAudioStatus(null);
+                renderAudioFeatures(null);
+                renderBindings([]);
+                renderSurfaces([]);
+                renderPrograms([]);
+            }
+
+            renderLayerState(snapshot.visualizers);
+            renderAutopilot(snapshot.autopilot);
+        }
+
+        dynamicEngine.on('state', renderState);
+        dynamicEngine.on('log', entry => {
+            if (entry.level === 'debug') return;
+            appendMessage('system', entry.message, entry.level.toUpperCase());
+        });
+
+        promptForm.addEventListener('submit', event => {
+            event.preventDefault();
+            const prompt = promptInput.value.trim();
+            if (!prompt) return;
+
+            appendMessage('user', prompt, 'PROMPT');
+            promptInput.value = '';
+
+            const { intents, summary } = router.processPrompt(prompt);
+            if (summary) {
+                appendMessage('system', summary, 'ROUTER');
+            }
+
+            const { results } = dynamicEngine.enqueueIntents(intents, { prompt });
+            results
+                .filter(result => result.message)
+                .forEach(result => {
+                    appendMessage('system', result.message, (result.status || 'INFO').toUpperCase());
+                });
+        });
+
+        quickButtons.forEach(button => {
+            button.addEventListener('click', () => {
+                promptInput.value = button.dataset.prompt;
+                promptForm.requestSubmit();
+            });
+        });
+
+        if (autopilotToggle) {
+            autopilotToggle.addEventListener('click', () => {
+                if (autopilotToggle.disabled) return;
+                const mode = autopilotToggle.dataset.mode;
+                const targetEnabled = mode !== 'enabled';
+                dynamicEngine.enqueueIntents([
+                    { action: 'setAutopilotState', enabled: targetEnabled },
+                ]);
+            });
+        }
+
+        if (audioPlayer) {
+            const updateStatusFromElement = () => {
+                renderAudioStatus({
+                    source: audioChoreographer.getSourceInfo?.(),
+                    features: audioChoreographer.getFeatures(),
+                });
+            };
+
+            (async () => {
+                try {
+                    await audioChoreographer.attachAudioElement(audioPlayer);
+                } catch (error) {
+                    console.warn('Audio router initialization failed', error);
+                }
+            })();
+
+            audioPlayer.addEventListener('play', async () => {
+                if (audioChoreographer.isMicrophoneActive?.()) {
+                    audioChoreographer.disableMicrophone();
+                    appendMessage('system', 'Microphone feed paused while the track plays.', 'AUDIO');
+                    setMicButton(false);
+                }
+                try {
+                    await audioChoreographer.attachAudioElement(audioPlayer);
+                } catch (error) {
+                    console.error('Audio routing failed', error);
+                    appendMessage('system', `Audio routing failed: ${error.message}`, 'ERROR');
+                } finally {
+                    updateStatusFromElement();
+                }
+            });
+
+            ['pause', 'ended', 'timeupdate', 'volumechange', 'loadeddata'].forEach(eventName => {
+                audioPlayer.addEventListener(eventName, updateStatusFromElement);
+            });
+
+            audioPlayer.addEventListener('error', event => {
+                const error = event?.target?.error;
+                if (!error) return;
+                console.error('Audio element error', error);
+                appendMessage('system', `Audio error: ${error.message || error.code}`, 'ERROR');
+                updateStatusFromElement();
+            });
+        }
+
+        if (micToggle) {
+            if (!navigator.mediaDevices?.getUserMedia) {
+                micToggle.disabled = true;
+                micToggle.dataset.locked = 'true';
+                micToggle.textContent = 'Microphone unsupported';
+                micToggle.title = 'Microphone capture is not available in this environment.';
+            }
+
+            micToggle.addEventListener('click', async () => {
+                if (micToggle.disabled) return;
+                const active = micToggle.dataset.active === 'true';
+                micToggle.disabled = true;
+                try {
+                    if (active) {
+                        audioChoreographer.disableMicrophone();
+                        appendMessage('system', 'Microphone feed disabled.', 'AUDIO');
+                        setMicButton(false);
+                    } else {
+                        await audioChoreographer.enableMicrophone();
+                        appendMessage('system', 'Microphone feed active. Map live sound to your visuals.', 'AUDIO');
+                        renderAudioFeatures(audioChoreographer.getFeatures());
+                        setMicButton(true);
+                    }
+                } catch (error) {
+                    console.error('Microphone toggle failed', error);
+                    appendMessage('system', `Microphone access failed: ${error.message}`, 'ERROR');
+                    setMicButton(false);
+                } finally {
+                    if (micToggle.dataset.locked === 'true') {
+                        micToggle.disabled = true;
+                    } else {
+                        micToggle.disabled = false;
+                    }
+                    renderAudioStatus({
+                        source: audioChoreographer.getSourceInfo?.(),
+                        features: audioChoreographer.getFeatures(),
+                    });
+                }
+            });
+        }
+
+        audioUpload.addEventListener('change', async event => {
+            const [file] = event.target.files;
+            if (!file) return;
+            appendMessage('system', `Loading ${file.name} for analysis...`, 'AUDIO');
+            try {
+                await audioChoreographer.loadFile(file, audioPlayer);
+                appendMessage('system', `${file.name} ready. Describe how to choreograph with it.`, 'AUDIO');
+                setMicButton(false);
+                renderAudioStatus({
+                    source: audioChoreographer.getSourceInfo?.(),
+                    features: audioChoreographer.getFeatures(),
+                });
+            } catch (error) {
+                console.error('Audio load failed', error);
+                appendMessage('system', `Audio load failed: ${error.message}`, 'ERROR');
+            }
+        });
+
+        audioChoreographer.on('features', features => {
+            renderAudioFeatures(features);
+            renderAudioStatus({
+                source: audioChoreographer.getSourceInfo?.(),
+                features,
+            });
+        });
+        audioChoreographer.on('bindings', renderBindings);
+        audioChoreographer.on('surfaces', renderSurfaces);
+        audioChoreographer.on('strategies', renderPrograms);
+
+        appendMessage('system', 'AI Conductor ready. Describe a visual move to begin.', 'STATUS');
+        renderState(dynamicEngine.getStateSnapshot());
+    </script>
+</body>
+</html>
