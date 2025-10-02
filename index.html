@@ -120,7 +120,8 @@
             display: none;
             flex-direction: column;
             gap: 15px;
-            min-width: 600px;
+            min-width: 760px;
+            max-width: 900px;
         }
 
         #controls.active {
@@ -131,6 +132,11 @@
             display: flex;
             gap: 10px;
             align-items: center;
+        }
+
+        .control-row.reactivity-row {
+            align-items: stretch;
+            gap: 20px;
         }
 
         button {
@@ -159,6 +165,13 @@
         button:disabled {
             opacity: 0.5;
             cursor: not-allowed;
+        }
+
+        button.recording,
+        button.recording:hover {
+            background: linear-gradient(135deg, #7a0000, #ff3b3b);
+            color: #fff;
+            box-shadow: 0 0 20px #ff3b3b;
         }
 
         .file-input-label {
@@ -195,6 +208,261 @@
             border-radius: 4px;
             width: 0%;
             transition: width 0.1s linear;
+        }
+
+        .xy-pad {
+            position: relative;
+            width: 200px;
+            height: 200px;
+            border: 2px solid rgba(0, 255, 255, 0.6);
+            border-radius: 14px;
+            background: radial-gradient(circle at center, rgba(0, 255, 255, 0.08), rgba(0, 0, 0, 0.6));
+            box-shadow: inset 0 0 25px rgba(0, 255, 255, 0.2);
+            cursor: crosshair;
+        }
+
+        .xy-pad::before,
+        .xy-pad::after {
+            content: '';
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            transform: translate(-50%, -50%);
+            border-radius: 12px;
+        }
+
+        .xy-pad::before {
+            background:
+                linear-gradient(rgba(0, 255, 255, 0.15) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0, 255, 255, 0.15) 1px, transparent 1px);
+            background-size: 20px 20px;
+        }
+
+        .xy-pad::after {
+            border: 1px solid rgba(0, 255, 255, 0.3);
+        }
+
+        .xy-pad__handle {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            border: 2px solid #0ff;
+            background: radial-gradient(circle at center, #0ff, rgba(0, 0, 0, 0.1));
+            box-shadow: 0 0 20px rgba(0, 255, 255, 0.6);
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+        }
+
+        .xy-pad--ready {
+            outline: none;
+        }
+
+        .xy-pad--ready:focus {
+            box-shadow: 0 0 20px rgba(0, 255, 255, 0.6);
+        }
+
+        .reactivity-panel {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            background: rgba(0, 255, 255, 0.05);
+            border: 1px solid rgba(0, 255, 255, 0.2);
+            border-radius: 12px;
+            padding: 15px;
+        }
+
+        .reactivity-panel h4 {
+            font-size: 13px;
+            color: #0ff;
+        }
+
+        .reactivity-panel p {
+            font-size: 11px;
+            color: #8ad4ff;
+            line-height: 1.4;
+        }
+
+        .reactivity-readout {
+            display: flex;
+            gap: 15px;
+            font-size: 12px;
+            color: #0ff;
+        }
+
+        .reactivity-buttons {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 10px;
+        }
+
+        .reactivity-buttons button {
+            width: 100%;
+        }
+
+        .macro-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            background: rgba(0, 15, 25, 0.72);
+            border: 1px solid rgba(0, 255, 255, 0.35);
+            border-radius: 14px;
+            padding: 16px;
+        }
+
+        .macro-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .macro-panel h4 {
+            font-size: 13px;
+            color: #0ff;
+            text-transform: uppercase;
+            letter-spacing: 0.12em;
+        }
+
+        .macro-controls {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: rgba(255, 255, 255, 0.72);
+        }
+
+        #macro-morph-slider {
+            width: 180px;
+            accent-color: #0ff;
+        }
+
+        #macro-morph-value {
+            font-size: 12px;
+            font-weight: 700;
+            color: #0ff;
+        }
+
+        .macro-instructions {
+            font-size: 10px;
+            color: rgba(173, 238, 255, 0.85);
+            letter-spacing: 0.05em;
+            line-height: 1.4;
+        }
+
+        .macro-buttons {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 10px;
+        }
+
+        .macro-btn {
+            position: relative;
+            overflow: hidden;
+            padding: 14px 16px;
+            background: rgba(0, 25, 35, 0.9);
+            border: 1px solid rgba(0, 255, 255, 0.25);
+            border-radius: 10px;
+            cursor: pointer;
+            transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+            min-height: 62px;
+        }
+
+        .macro-btn::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(135deg, rgba(0, 255, 255, 0.25), rgba(255, 0, 255, 0.18));
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .macro-btn[data-captured="true"]::before {
+            opacity: 0.4;
+        }
+
+        .macro-btn::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(90deg, rgba(0, 255, 255, 0.55), rgba(255, 0, 255, 0.55));
+            transform: scaleX(var(--macro-progress, 0));
+            transform-origin: left center;
+            transition: transform 0.18s ease-out;
+            mix-blend-mode: screen;
+            opacity: 0.75;
+            pointer-events: none;
+        }
+
+        .macro-btn span {
+            position: relative;
+            z-index: 1;
+            display: block;
+        }
+
+        .macro-btn__label {
+            font-size: 13px;
+            font-weight: 700;
+            color: #0ff;
+        }
+
+        .macro-btn__timestamp {
+            margin-top: 4px;
+            font-size: 9px;
+            color: rgba(255, 255, 255, 0.65);
+        }
+
+        .macro-btn--active {
+            border-color: #fff;
+            box-shadow: 0 0 26px rgba(0, 255, 255, 0.5);
+        }
+
+        .macro-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 0 18px rgba(0, 255, 255, 0.4);
+        }
+
+        .macro-status {
+            font-size: 11px;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: rgba(255, 255, 255, 0.6);
+        }
+
+        .macro-status[data-tone="success"] {
+            color: #8cffd5;
+        }
+
+        .macro-status[data-tone="info"] {
+            color: #74d1ff;
+        }
+
+        .macro-status[data-tone="warning"] {
+            color: #ffda89;
+        }
+
+        .macro-status[data-tone="error"] {
+            color: #ff8a8a;
+        }
+
+        .macro-status[data-tone="muted"] {
+            color: rgba(255, 255, 255, 0.45);
+        }
+
+        button.automation-active,
+        button.automation-active:hover {
+            background: linear-gradient(135deg, #064d7a, #0ff);
+            box-shadow: 0 0 24px rgba(0, 255, 255, 0.6);
+            color: #00181f;
         }
 
         #status {
@@ -364,6 +632,15 @@
                 max-width: 90%;
             }
 
+            .control-row.reactivity-row {
+                flex-direction: column;
+            }
+
+            .xy-pad {
+                width: 100%;
+                height: 180px;
+            }
+
             #timeline-editor {
                 width: 90%;
                 left: 5%;
@@ -403,6 +680,8 @@
         <p id="mode-description">Real-time audio analysis with automatic parameter mapping</p>
         <p id="beat-info">BPM: -- | Beat: --</p>
         <p id="energy-info">Energy: -- | Bass: --</p>
+        <p id="spectral-info">Tilt: -- | Transient: --</p>
+        <p id="reactivity-info">Pad X: 0.00 | Y: 0.00</p>
     </div>
 
     <!-- Timeline Editor for Choreography Mode -->
@@ -428,6 +707,63 @@
 
         <div id="timeline">
             <div id="timeline-progress"></div>
+        </div>
+
+        <div class="control-row reactivity-row">
+            <div class="xy-pad" id="reactivity-pad" aria-label="Live reactivity XY pad"></div>
+            <div class="reactivity-panel">
+                <h4>Live Reactivity Pad</h4>
+                <p>Blend holographic intensity (X-axis) with chaos & dimensional depth (Y-axis). Perform live, capture automation, then replay or import precision curves on demand.</p>
+                <div class="reactivity-readout">
+                    <span id="reactivity-readout-x">X: 0.00</span>
+                    <span id="reactivity-readout-y">Y: 0.00</span>
+                </div>
+                <div class="reactivity-buttons">
+                    <button id="record-automation-btn">● Start Recording</button>
+                    <button id="automation-playback-btn" disabled aria-pressed="false">▶ Automation Playback</button>
+                    <button id="export-automation-btn" disabled>⬇ Export Automation</button>
+                    <button id="import-automation-btn">⬆ Import Automation</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="macro-panel" id="macro-panel">
+            <div class="macro-header">
+                <h4>Performance Macro Matrix</h4>
+                <div class="macro-controls">
+                    <span>Morph Duration</span>
+                    <input type="range" id="macro-morph-slider" min="200" max="4000" step="100" value="1600" aria-label="Macro morph duration">
+                    <span id="macro-morph-value">1.60s</span>
+                </div>
+            </div>
+            <p class="macro-instructions">Click to recall a stored state. Shift+Click or right-click to store the current XY pad and reactivity snapshot. Double-click any slot to rename.</p>
+            <div class="macro-buttons">
+                <button class="macro-btn" data-macro-slot="0">
+                    <span class="macro-btn__label">Macro 1</span>
+                    <span class="macro-btn__timestamp">—</span>
+                </button>
+                <button class="macro-btn" data-macro-slot="1">
+                    <span class="macro-btn__label">Macro 2</span>
+                    <span class="macro-btn__timestamp">—</span>
+                </button>
+                <button class="macro-btn" data-macro-slot="2">
+                    <span class="macro-btn__label">Macro 3</span>
+                    <span class="macro-btn__timestamp">—</span>
+                </button>
+                <button class="macro-btn" data-macro-slot="3">
+                    <span class="macro-btn__label">Macro 4</span>
+                    <span class="macro-btn__timestamp">—</span>
+                </button>
+                <button class="macro-btn" data-macro-slot="4">
+                    <span class="macro-btn__label">Macro 5</span>
+                    <span class="macro-btn__timestamp">—</span>
+                </button>
+                <button class="macro-btn" data-macro-slot="5">
+                    <span class="macro-btn__label">Macro 6</span>
+                    <span class="macro-btn__timestamp">—</span>
+                </button>
+            </div>
+            <div class="macro-status" id="macro-status" data-tone="muted">Shift+Click to store, Click to recall performance macros.</div>
         </div>
 
         <div class="system-selector">
