@@ -1,0 +1,2310 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VIB34D AI Conductor Console</title>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: 'Orbitron', sans-serif;
+            background: radial-gradient(circle at top left, rgba(0, 255, 200, 0.15), rgba(0, 0, 0, 0.95));
+            color: #e0faff;
+            height: 100vh;
+            overflow: hidden;
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 18px;
+            padding: 18px;
+        }
+
+        #visualizer-shell {
+            position: relative;
+            border: 2px solid rgba(0, 255, 255, 0.35);
+            border-radius: 18px;
+            overflow: hidden;
+            background: rgba(0, 0, 0, 0.75);
+            box-shadow: 0 0 45px rgba(0, 255, 255, 0.12);
+        }
+
+        #visualizer-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+        }
+
+        .holographic-layers {
+            width: 100%;
+            height: 100%;
+            position: relative;
+        }
+
+        .holographic-layers canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            mix-blend-mode: screen;
+        }
+
+        #console-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            border: 2px solid rgba(0, 255, 255, 0.25);
+            border-radius: 18px;
+            padding: 18px;
+            background: rgba(10, 12, 18, 0.85);
+            backdrop-filter: blur(16px);
+            box-shadow: 0 0 40px rgba(0, 255, 255, 0.08);
+        }
+
+        #console-panel h1 {
+            font-size: 22px;
+            text-transform: uppercase;
+            letter-spacing: 3px;
+            margin: 0;
+            background: linear-gradient(90deg, #00faff, #8b5cff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        #state-summary {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 10px;
+            font-size: 12px;
+            text-transform: uppercase;
+        }
+
+        #autopilot-state {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            padding: 12px;
+            border-radius: 12px;
+            background: rgba(6, 18, 28, 0.78);
+            border: 1px solid rgba(0, 255, 200, 0.18);
+        }
+
+        .autopilot-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            text-transform: uppercase;
+            letter-spacing: 1.6px;
+            font-size: 11px;
+            color: #8ef6ff;
+        }
+
+        #autopilot-status {
+            font-size: 10px;
+            letter-spacing: 1.2px;
+            opacity: 0.75;
+        }
+
+        .autopilot-controls {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        #autopilot-toggle {
+            padding: 6px 12px;
+            font-size: 10px;
+            letter-spacing: 1.2px;
+            text-transform: uppercase;
+            border-radius: 999px;
+            border: 1px solid rgba(0, 255, 255, 0.35);
+            background: rgba(0, 255, 255, 0.14);
+            color: #9ef6ff;
+            cursor: pointer;
+            transition: background 0.2s ease, transform 0.2s ease;
+        }
+
+        #autopilot-toggle:hover:not(:disabled) {
+            background: rgba(0, 255, 255, 0.24);
+            transform: translateY(-1px);
+        }
+
+        #autopilot-toggle:disabled {
+            opacity: 0.45;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        #autopilot-baselines {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            font-size: 11px;
+            color: #c8f9ff;
+            opacity: 0.82;
+        }
+
+        #autopilot-baselines span {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        #autopilot-features {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 8px;
+            font-size: 11px;
+            color: #aefcff;
+        }
+
+        #autopilot-anchors {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 8px;
+            margin: 6px 0;
+        }
+
+        #autopilot-anchors .anchor-controls {
+            grid-column: 1 / -1;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 4px;
+        }
+
+        .anchor-control-btn {
+            border-radius: 20px;
+            padding: 6px 14px;
+            border: 1px solid rgba(0, 255, 255, 0.35);
+            background: rgba(0, 255, 255, 0.08);
+            font-size: 10px;
+            letter-spacing: 0.8px;
+            text-transform: uppercase;
+            cursor: pointer;
+            transition: background 0.2s ease, transform 0.2s ease, border-color 0.2s ease;
+        }
+
+        .anchor-control-btn:hover:not(:disabled) {
+            background: rgba(0, 255, 255, 0.16);
+            transform: translateY(-1px);
+            border-color: rgba(0, 255, 255, 0.5);
+        }
+
+        .anchor-control-btn:disabled {
+            opacity: 0.45;
+            cursor: not-allowed;
+        }
+
+        .autopilot-anchor {
+            border-radius: 10px;
+            background: rgba(10, 36, 48, 0.68);
+            border: 1px solid rgba(0, 255, 255, 0.18);
+            padding: 9px;
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+            font-size: 11px;
+        }
+
+        .autopilot-anchor strong {
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-size: 10px;
+            color: #80f7ff;
+        }
+
+        .autopilot-anchor .anchor-value {
+            font-size: 13px;
+            letter-spacing: 0.8px;
+            color: #ebfeff;
+        }
+
+        .autopilot-anchor .anchor-meta {
+            font-size: 10px;
+            letter-spacing: 0.6px;
+            opacity: 0.72;
+        }
+
+        .anchor-card-actions {
+            margin-top: 6px;
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+        }
+
+        .anchor-chip-btn {
+            border-radius: 14px;
+            border: 1px solid rgba(0, 255, 255, 0.28);
+            background: rgba(0, 255, 255, 0.06);
+            padding: 4px 10px;
+            font-size: 10px;
+            letter-spacing: 0.6px;
+            text-transform: uppercase;
+            cursor: pointer;
+            transition: background 0.2s ease, border-color 0.2s ease;
+        }
+
+        .anchor-chip-btn:hover:not(:disabled) {
+            background: rgba(0, 255, 255, 0.12);
+            border-color: rgba(0, 255, 255, 0.45);
+        }
+
+        .autopilot-anchor-empty {
+            grid-column: 1 / -1;
+            font-size: 11px;
+            letter-spacing: 0.6px;
+            opacity: 0.7;
+        }
+
+        #autopilot-features.empty {
+            position: relative;
+            min-height: 28px;
+        }
+
+        #autopilot-features.empty::after {
+            content: 'Feature ranges will populate once telemetry stabilizes.';
+            font-size: 11px;
+            opacity: 0.6;
+            letter-spacing: 0.6px;
+        }
+
+        .autopilot-feature {
+            border-radius: 10px;
+            background: rgba(8, 30, 44, 0.65);
+            border: 1px solid rgba(0, 255, 255, 0.16);
+            padding: 8px;
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .autopilot-feature strong {
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            font-size: 10px;
+            color: #7dfcff;
+        }
+
+        .autopilot-feature span {
+            font-size: 11px;
+            letter-spacing: 0.5px;
+            opacity: 0.84;
+        }
+
+        #autopilot-surfaces {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: 8px;
+            margin-top: 4px;
+        }
+
+        #autopilot-surfaces.empty {
+            position: relative;
+            min-height: 32px;
+        }
+
+        #autopilot-surfaces.empty::after {
+            content: 'Autopilot XY surfaces will appear as soon as the pilot is active.';
+            font-size: 11px;
+            opacity: 0.6;
+            letter-spacing: 0.6px;
+            line-height: 1.4;
+        }
+
+        .autopilot-surface {
+            border-radius: 10px;
+            background: rgba(12, 24, 36, 0.72);
+            border: 1px solid rgba(0, 255, 200, 0.16);
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            font-size: 11px;
+        }
+
+        .autopilot-surface.inactive {
+            opacity: 0.62;
+            border-style: dashed;
+        }
+
+        .autopilot-surface strong {
+            text-transform: uppercase;
+            letter-spacing: 1.1px;
+            color: #9fffe0;
+            font-size: 11px;
+        }
+
+        .autopilot-surface-axes {
+            font-size: 10px;
+            letter-spacing: 0.6px;
+            opacity: 0.7;
+        }
+
+        .autopilot-surface-targets {
+            font-size: 10px;
+            letter-spacing: 0.8px;
+            text-transform: uppercase;
+            color: #a8d9ff;
+        }
+
+        .autopilot-surface-status {
+            font-size: 10px;
+            color: #d6f9ff;
+            opacity: 0.78;
+        }
+
+        #autopilot-programs {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        #autopilot-programs.empty::after {
+            content: 'Autopilot is listening. Ask for a routine or let audio drive to see activity.';
+            font-size: 11px;
+            opacity: 0.6;
+            letter-spacing: 0.6px;
+            line-height: 1.4;
+        }
+
+        .autopilot-program {
+            border-radius: 10px;
+            background: rgba(10, 26, 38, 0.75);
+            border: 1px solid rgba(0, 255, 200, 0.16);
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            font-size: 11px;
+        }
+
+        .autopilot-program.inactive {
+            opacity: 0.55;
+            border-style: dashed;
+        }
+
+        .autopilot-program strong {
+            text-transform: uppercase;
+            letter-spacing: 1.2px;
+            color: #9fffe0;
+        }
+
+        .autopilot-program .autopilot-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            opacity: 0.75;
+        }
+
+        .autopilot-program .autopilot-summary {
+            font-size: 10px;
+            opacity: 0.72;
+            line-height: 1.4;
+        }
+
+        .autopilot-program button {
+            align-self: flex-start;
+            margin-top: 6px;
+            padding: 6px 12px;
+            font-size: 10px;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            border-radius: 999px;
+            border: 1px solid rgba(0, 255, 200, 0.28);
+            background: rgba(0, 255, 200, 0.12);
+            color: #d3fffb;
+            cursor: pointer;
+            transition: background 0.2s ease, transform 0.2s ease;
+        }
+
+        .autopilot-program button:hover:not(:disabled) {
+            background: rgba(0, 255, 200, 0.24);
+            transform: translateY(-1px);
+        }
+
+        .autopilot-program button:disabled {
+            opacity: 0.45;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        #layer-state {
+            margin-top: 12px;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 10px;
+        }
+
+        .layer-card {
+            padding: 10px 12px;
+            border-radius: 12px;
+            background: rgba(18, 24, 38, 0.85);
+            border: 1px solid rgba(0, 255, 255, 0.18);
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            min-height: 88px;
+        }
+
+        .layer-card h4 {
+            margin: 0;
+            font-size: 11px;
+            letter-spacing: 1.6px;
+            text-transform: uppercase;
+            color: #8aa8ff;
+        }
+
+        .layer-metric {
+            display: flex;
+            justify-content: space-between;
+            font-size: 11px;
+            color: #c8e8ff;
+        }
+
+        .layer-metric strong {
+            font-weight: 600;
+            color: #f4fbff;
+        }
+
+        .state-chip {
+            padding: 12px;
+            border-radius: 12px;
+            background: rgba(0, 255, 255, 0.08);
+            border: 1px solid rgba(0, 255, 255, 0.2);
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .state-chip span.value {
+            font-size: 18px;
+            color: #ffffff;
+        }
+
+        #conversation-log {
+            flex: 1;
+            background: rgba(8, 12, 20, 0.85);
+            border: 1px solid rgba(0, 255, 255, 0.15);
+            border-radius: 12px;
+            padding: 12px;
+            overflow-y: auto;
+            font-size: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .message {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            padding: 10px;
+            border-radius: 10px;
+        }
+
+        .message.user {
+            background: rgba(139, 92, 255, 0.2);
+            align-self: flex-end;
+            border: 1px solid rgba(139, 92, 255, 0.4);
+        }
+
+        .message.system {
+            background: rgba(0, 255, 255, 0.12);
+            border: 1px solid rgba(0, 255, 255, 0.35);
+        }
+
+        .message .meta {
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            opacity: 0.7;
+        }
+
+        #audio-insights {
+            border: 1px solid rgba(0, 255, 255, 0.18);
+            border-radius: 14px;
+            padding: 14px;
+            background: rgba(0, 28, 35, 0.45);
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        #audio-insights h2 {
+            margin: 0;
+            font-size: 13px;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            color: #74f6ff;
+        }
+
+        #audio-source-tools {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        #audio-source-tools label {
+            font-size: 11px;
+            letter-spacing: 1px;
+            opacity: 0.75;
+        }
+
+        #audio-upload {
+            background: rgba(0, 255, 255, 0.08);
+            border: 1px dashed rgba(0, 255, 255, 0.3);
+            border-radius: 10px;
+            padding: 8px 12px;
+            color: #aefbff;
+            font-family: inherit;
+            font-size: 11px;
+            letter-spacing: 1px;
+        }
+
+        #mic-toggle {
+            background: rgba(139, 92, 255, 0.18);
+            border: 1px solid rgba(139, 92, 255, 0.35);
+            border-radius: 10px;
+            padding: 8px 14px;
+            color: #dec9ff;
+            font-family: inherit;
+            font-size: 11px;
+            letter-spacing: 1px;
+            cursor: pointer;
+            transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+        }
+
+        #mic-toggle:hover:not(:disabled) {
+            transform: translateY(-1px);
+            box-shadow: 0 10px 20px rgba(139, 92, 255, 0.25);
+        }
+
+        #mic-toggle.active {
+            background: rgba(139, 92, 255, 0.35);
+            box-shadow: 0 0 16px rgba(139, 92, 255, 0.35);
+            color: #fff;
+        }
+
+        #mic-toggle:disabled {
+            opacity: 0.45;
+            cursor: not-allowed;
+            box-shadow: none;
+        }
+
+        #audio-player {
+            width: 100%;
+            border-radius: 10px;
+            background: rgba(4, 12, 20, 0.65);
+            border: 1px solid rgba(0, 255, 255, 0.15);
+        }
+
+        #audio-features {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 10px;
+        }
+
+        .audio-feature {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            font-size: 11px;
+        }
+
+        .audio-feature .label {
+            display: flex;
+            justify-content: space-between;
+            letter-spacing: 1px;
+        }
+
+        .audio-feature .meter {
+            height: 6px;
+            border-radius: 999px;
+            overflow: hidden;
+            background: rgba(0, 255, 255, 0.1);
+        }
+
+        .audio-feature .meter span {
+            display: block;
+            height: 100%;
+            border-radius: inherit;
+            background: linear-gradient(90deg, rgba(0, 255, 255, 0.3), rgba(139, 92, 255, 0.7));
+            transition: width 0.18s ease;
+        }
+
+        #audio-section-status {
+            font-size: 11px;
+            opacity: 0.65;
+            letter-spacing: 1px;
+        }
+
+        #audio-bindings {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            max-height: 160px;
+            overflow-y: auto;
+        }
+
+        #audio-surfaces {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            max-height: 160px;
+            overflow-y: auto;
+        }
+
+        .binding-card {
+            padding: 10px;
+            border-radius: 10px;
+            background: rgba(12, 34, 46, 0.55);
+            border: 1px solid rgba(0, 255, 255, 0.18);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+            font-size: 11px;
+        }
+
+        .binding-card strong {
+            font-size: 12px;
+            letter-spacing: 1px;
+        }
+
+        .binding-card button {
+            border: 1px solid rgba(255, 99, 132, 0.45);
+            border-radius: 8px;
+            background: rgba(255, 99, 132, 0.12);
+            color: #ff9fb3;
+            padding: 4px 8px;
+            font-size: 10px;
+            letter-spacing: 1px;
+            cursor: pointer;
+        }
+
+        .binding-card button:hover {
+            background: rgba(255, 99, 132, 0.24);
+        }
+
+        #audio-bindings.empty::after {
+            content: 'No audio bindings yet. Ask the conductor to map bass, beats, or energy to parameters.';
+            font-size: 11px;
+            opacity: 0.6;
+            line-height: 1.4;
+        }
+
+        #audio-surfaces.empty::after {
+            content: 'No XY surfaces yet. Describe how two audio features should steer parameters together.';
+            font-size: 11px;
+            opacity: 0.6;
+            line-height: 1.4;
+        }
+
+        .surface-card {
+            padding: 12px;
+            border-radius: 10px;
+            background: rgba(20, 12, 40, 0.6);
+            border: 1px solid rgba(139, 92, 255, 0.3);
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            font-size: 11px;
+        }
+
+        .surface-card .surface-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .surface-card .surface-header strong {
+            letter-spacing: 1px;
+        }
+
+        .surface-card .axes {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 6px;
+            opacity: 0.8;
+        }
+
+        .surface-card .axes span {
+            display: block;
+        }
+
+        .surface-card .surface-targets {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            opacity: 0.85;
+        }
+
+        .surface-card .surface-targets strong {
+            letter-spacing: 1px;
+        }
+
+        .surface-card button {
+            align-self: flex-start;
+            border: 1px solid rgba(255, 99, 132, 0.4);
+            border-radius: 8px;
+            background: rgba(255, 99, 132, 0.18);
+            color: #ffc0ca;
+            padding: 4px 8px;
+            font-size: 10px;
+            letter-spacing: 1px;
+            cursor: pointer;
+        }
+
+        .surface-card button:hover {
+            background: rgba(255, 99, 132, 0.28);
+        }
+
+        #audio-programs {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        #audio-programs.empty::after {
+            content: 'No section programs yet. Ask for an audio strategy preset to engage verse/chorus dynamics.';
+            font-size: 11px;
+            opacity: 0.6;
+            line-height: 1.4;
+        }
+
+        .program-card {
+            padding: 12px;
+            border-radius: 10px;
+            background: rgba(10, 30, 42, 0.6);
+            border: 1px solid rgba(0, 255, 180, 0.28);
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            font-size: 11px;
+        }
+
+        .program-card .program-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .program-card .program-header strong {
+            font-size: 12px;
+            letter-spacing: 1px;
+        }
+
+        .program-card .program-header span {
+            font-size: 10px;
+            text-transform: uppercase;
+            opacity: 0.7;
+            letter-spacing: 1px;
+        }
+
+        .program-card .program-targets {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .program-card .program-targets div {
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+        }
+
+        .program-card .program-targets strong {
+            letter-spacing: 1px;
+        }
+
+        .program-card .program-meta {
+            font-size: 10px;
+            opacity: 0.7;
+            letter-spacing: 0.5px;
+        }
+
+        .audio-subheading {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            opacity: 0.65;
+        }
+
+        .audio-action-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: 8px;
+            margin: 8px 0 14px;
+        }
+
+        .audio-action-grid button {
+            padding: 10px 12px;
+            border-radius: 10px;
+            background: rgba(0, 255, 204, 0.12);
+            border: 1px solid rgba(0, 255, 204, 0.28);
+            color: #c9fff5;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-size: 10px;
+            cursor: pointer;
+            transition: background 0.2s ease, transform 0.2s ease, border-color 0.2s ease;
+        }
+
+        .audio-action-grid button:hover {
+            background: rgba(0, 255, 204, 0.22);
+            border-color: rgba(0, 255, 204, 0.45);
+            transform: translateY(-1px);
+        }
+
+        .audio-action-grid button.secondary {
+            background: rgba(255, 128, 177, 0.12);
+            border-color: rgba(255, 128, 177, 0.32);
+            color: #ffd9ef;
+        }
+
+        .audio-action-grid button.secondary:hover {
+            background: rgba(255, 128, 177, 0.22);
+            border-color: rgba(255, 128, 177, 0.45);
+        }
+
+        form#prompt-form {
+            display: flex;
+            gap: 10px;
+        }
+
+        #prompt-input {
+            flex: 1;
+            padding: 14px;
+            border-radius: 12px;
+            border: 1px solid rgba(0, 255, 255, 0.3);
+            background: rgba(0, 10, 18, 0.9);
+            color: #e6feff;
+            font-size: 14px;
+            font-family: 'Orbitron', sans-serif;
+            letter-spacing: 1px;
+        }
+
+        #prompt-input:focus {
+            outline: none;
+            border-color: #8b5cff;
+            box-shadow: 0 0 15px rgba(139, 92, 255, 0.35);
+        }
+
+        #send-btn {
+            background: linear-gradient(135deg, #00faff, #8b5cff);
+            border: none;
+            border-radius: 12px;
+            padding: 0 24px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #020208;
+            cursor: pointer;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        #send-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 10px 20px rgba(0, 250, 255, 0.25);
+        }
+
+        #quick-commands {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 10px;
+        }
+
+        .quick-btn {
+            background: rgba(0, 255, 255, 0.12);
+            border: 1px solid rgba(0, 255, 255, 0.3);
+            border-radius: 12px;
+            padding: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-size: 11px;
+            cursor: pointer;
+            transition: transform 0.2s ease, background 0.2s ease;
+        }
+
+        .quick-btn:hover {
+            transform: translateY(-1px);
+            background: rgba(0, 255, 255, 0.18);
+        }
+
+        @media (max-width: 1100px) {
+            body {
+                grid-template-columns: 1fr;
+                grid-template-rows: 1fr 1fr;
+                height: auto;
+                overflow: auto;
+            }
+
+            #visualizer-shell {
+                min-height: 320px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <section id="visualizer-shell">
+        <div id="visualizer-container">
+            <div class="holographic-layers">
+                <canvas id="background-canvas"></canvas>
+                <canvas id="shadow-canvas"></canvas>
+                <canvas id="content-canvas"></canvas>
+                <canvas id="highlight-canvas"></canvas>
+                <canvas id="accent-canvas"></canvas>
+            </div>
+        </div>
+    </section>
+    <section id="console-panel">
+        <h1>AI Conductor Console</h1>
+        <div id="state-summary"></div>
+        <div id="autopilot-state">
+            <div class="autopilot-header">
+                <h3>Autopilot Programs</h3>
+                <div class="autopilot-controls">
+                    <span id="autopilot-status">Idle</span>
+                    <button id="autopilot-toggle" type="button" disabled>Autopilot Offline</button>
+                </div>
+            </div>
+            <div id="autopilot-baselines"></div>
+            <div id="autopilot-anchors"></div>
+            <div id="autopilot-features" class="empty"></div>
+            <div id="autopilot-surfaces" class="empty"></div>
+            <div id="autopilot-programs" class="empty"></div>
+        </div>
+        <div id="layer-state"></div>
+        <div id="conversation-log"></div>
+        <form id="prompt-form">
+            <input id="prompt-input" type="text" placeholder="Describe the next move…" autocomplete="off" />
+            <button id="send-btn" type="submit">Send</button>
+        </form>
+        <div id="quick-commands">
+            <button class="quick-btn" data-prompt="give me a calm ambient bridge with softer chaos">Calm Bridge</button>
+            <button class="quick-btn" data-prompt="push into neon cyberpunk mode and raise speed">Neon Surge</button>
+            <button class="quick-btn" data-prompt="prep variation 18 for the drop">Variation 18</button>
+            <button class="quick-btn" data-prompt="fade hue from 40 to 300 over 12 seconds">Spectrum Fade</button>
+            <button class="quick-btn" data-prompt="let the bass drive grid density and highs shimmer the hue">Audio Grid</button>
+            <button class="quick-btn" data-prompt="activate a balanced audio strategy that maps bass to density and color swaps for the chorus">Balanced Strategy</button>
+        </div>
+        <div id="audio-insights">
+            <h2>Audio Intelligence</h2>
+            <div id="audio-section-status">Upload a track or let the microphone feed drive the choreography.</div>
+            <div id="audio-source-tools">
+                <label for="audio-upload">Load Track</label>
+                <input type="file" id="audio-upload" accept="audio/*">
+                <button id="mic-toggle" type="button">Enable Microphone</button>
+            </div>
+            <audio id="audio-player" controls></audio>
+            <div class="audio-subheading">Feature Telemetry</div>
+            <div id="audio-features"></div>
+            <div class="audio-subheading">Quick Binding Presets</div>
+            <div id="audio-binding-presets" class="audio-action-grid">
+                <button type="button" data-binding-preset="bass-density">Bass → Grid Density</button>
+                <button type="button" data-binding-preset="energy-chaos">Energy ± Chaos</button>
+                <button type="button" data-binding-preset="high-hue">Highs → Hue Sweep</button>
+                <button type="button" data-binding-preset="transient-intensity">Transients ↯ Intensity</button>
+                <button type="button" data-binding-preset="clear" class="secondary">Clear Audio Bindings</button>
+            </div>
+            <div class="audio-subheading">Surface Presets</div>
+            <div id="audio-surface-presets" class="audio-action-grid">
+                <button type="button" data-surface-preset="energy-transient">Energy × Transient Canvas</button>
+                <button type="button" data-surface-preset="bass-energy">Bass × Energy Palette</button>
+            </div>
+            <div class="audio-subheading">Strategy Presets</div>
+            <div id="audio-strategy-presets" class="audio-action-grid">
+                <button type="button" data-strategy-preset="balanced-reactive">Balanced Reactive Program</button>
+                <button type="button" data-strategy-preset="bass-density">Bass Density Focus</button>
+                <button type="button" data-strategy-preset="bass-color">Bass-Driven Color</button>
+                <button type="button" data-strategy-preset="section-contrast" data-keep-existing="true">Layered Section Contrast</button>
+            </div>
+            <div class="audio-subheading">Feature Bindings</div>
+            <div id="audio-bindings" class="empty"></div>
+            <div class="audio-subheading">XY Surfaces</div>
+            <div id="audio-surfaces" class="empty"></div>
+            <div class="audio-subheading">Section Programs</div>
+            <div id="audio-programs" class="empty"></div>
+        </div>
+    </section>
+
+    <script type="module">
+        import { VIB34DIntegratedEngine } from './src/core/Engine.js';
+        import { DynamicControlEngine } from './src/llm/DynamicControlEngine.js';
+        import { LLMCommandRouter } from './src/llm/DynamicCommandRouter.js';
+        import { LLMAudioChoreographer } from './src/llm/LLMAudioChoreographer.js';
+        import { LLMAgentAutoPilot } from './src/llm/LLMAgentAutoPilot.js';
+
+        const engine = new VIB34DIntegratedEngine();
+        const dynamicEngine = new DynamicControlEngine(engine);
+        const router = new LLMCommandRouter();
+        const audioChoreographer = new LLMAudioChoreographer(dynamicEngine);
+        dynamicEngine.attachAudioChoreographer(audioChoreographer);
+        const autopilot = new LLMAgentAutoPilot(dynamicEngine, audioChoreographer);
+        dynamicEngine.attachAutoPilot(autopilot);
+
+        const conversationLog = document.getElementById('conversation-log');
+        const stateSummary = document.getElementById('state-summary');
+        const layerState = document.getElementById('layer-state');
+        const autopilotStatus = document.getElementById('autopilot-status');
+        const autopilotBaselines = document.getElementById('autopilot-baselines');
+        const autopilotAnchors = document.getElementById('autopilot-anchors');
+        const autopilotFeatures = document.getElementById('autopilot-features');
+        const autopilotSurfaces = document.getElementById('autopilot-surfaces');
+        const autopilotPrograms = document.getElementById('autopilot-programs');
+        const autopilotToggle = document.getElementById('autopilot-toggle');
+        const promptForm = document.getElementById('prompt-form');
+        const promptInput = document.getElementById('prompt-input');
+        const quickButtons = Array.from(document.querySelectorAll('.quick-btn'));
+        const audioUpload = document.getElementById('audio-upload');
+        const audioPlayer = document.getElementById('audio-player');
+        const audioFeatures = document.getElementById('audio-features');
+        const audioBindingPresets = document.getElementById('audio-binding-presets');
+        const audioSurfacePresets = document.getElementById('audio-surface-presets');
+        const audioStrategyPresets = document.getElementById('audio-strategy-presets');
+        const audioBindings = document.getElementById('audio-bindings');
+        const audioSurfaces = document.getElementById('audio-surfaces');
+        const audioPrograms = document.getElementById('audio-programs');
+        const audioStatus = document.getElementById('audio-section-status');
+        const micToggle = document.getElementById('mic-toggle');
+        const getParam = name => dynamicEngine?.parameterManager?.getParameter(name);
+
+        if (autopilotToggle) {
+            autopilotToggle.dataset.mode = 'offline';
+        }
+
+        function appendMessage(role, message, meta) {
+            const wrapper = document.createElement('div');
+            wrapper.className = `message ${role}`;
+            if (meta) {
+                const metaEl = document.createElement('span');
+                metaEl.className = 'meta';
+                metaEl.textContent = meta;
+                wrapper.appendChild(metaEl);
+            }
+            const textEl = document.createElement('span');
+            textEl.textContent = message;
+            wrapper.appendChild(textEl);
+            conversationLog.appendChild(wrapper);
+            conversationLog.scrollTo({ top: conversationLog.scrollHeight, behavior: 'smooth' });
+        }
+
+        function formatPercent(value) {
+            return `${Math.round(Math.min(Math.max(value, 0), 1) * 100)}%`;
+        }
+
+        function formatNumber(value, digits = 2) {
+            return typeof value === 'number' ? value.toFixed(digits) : value;
+        }
+
+        const PERCENT_FEATURES = new Set(['energy', 'bass', 'transient', 'beat', 'beatStrength']);
+        const PARAM_PERCENT = new Set(['chaos', 'intensity', 'saturation']);
+        const PARAM_DEGREES = new Set(['hue']);
+        const PARAM_INTEGER = new Set(['gridDensity']);
+        const ANCHOR_SOURCE_LABELS = {
+            prompt: 'Prompt',
+            preset: 'Preset',
+            envelope: 'Envelope',
+            manual: 'Manual',
+            init: 'Session start',
+            'autopilot-toggle': 'Autopilot toggle',
+        };
+
+        function formatFeatureLabel(feature) {
+            if (!feature) return 'Feature';
+            return feature
+                .toString()
+                .replace(/([A-Z])/g, ' $1')
+                .replace(/[-_]/g, ' ')
+                .trim()
+                .replace(/^\w/, c => c.toUpperCase());
+        }
+
+        function formatFeatureValue(feature, value, digits = 2) {
+            if (value === null || value === undefined || Number.isNaN(value)) {
+                return '—';
+            }
+            if (PERCENT_FEATURES.has(feature)) {
+                return formatPercent(value);
+            }
+            return formatNumber(value, digits);
+        }
+
+        function formatParameterLabel(parameter) {
+            if (!parameter) return 'Parameter';
+            return parameter
+                .toString()
+                .replace(/([A-Z])/g, ' $1')
+                .replace(/[-_]/g, ' ')
+                .trim()
+                .replace(/^\w/, c => c.toUpperCase());
+        }
+
+        function formatParameterValue(parameter, value) {
+            if (value === null || value === undefined || Number.isNaN(value)) {
+                return '—';
+            }
+            if (PARAM_PERCENT.has(parameter)) {
+                return formatPercent(value);
+            }
+            if (PARAM_DEGREES.has(parameter)) {
+                return `${Math.round(value)}°`;
+            }
+            if (parameter === 'speed') {
+                return `${value.toFixed(2)}×`;
+            }
+            if (PARAM_INTEGER.has(parameter)) {
+                return Math.round(value).toString();
+            }
+            return formatNumber(value, 2);
+        }
+
+        function formatAnchorSource(source) {
+            if (!source) return 'Manual';
+            const normalized = source.toString();
+            if (ANCHOR_SOURCE_LABELS[normalized]) {
+                return ANCHOR_SOURCE_LABELS[normalized];
+            }
+            return normalized
+                .replace(/[:_]/g, ' ')
+                .replace(/-/g, ' ')
+                .replace(/\s+/g, ' ')
+                .trim()
+                .replace(/^\w/, c => c.toUpperCase());
+        }
+
+        function formatTimeAgo(ms) {
+            if (ms === null || ms === undefined) return '—';
+            if (ms < 600) return '<1s ago';
+            if (ms < 60000) {
+                const seconds = ms / 1000;
+                return `${seconds < 10 ? seconds.toFixed(1) : Math.round(seconds)}s ago`;
+            }
+            const minutes = ms / 60000;
+            return `${minutes < 10 ? minutes.toFixed(1) : Math.round(minutes)}m ago`;
+        }
+
+        function formatCooldown(ms) {
+            if (!ms || ms <= 0) return 'ready';
+            if (ms < 1000) return '<1s';
+            if (ms < 60000) {
+                const seconds = ms / 1000;
+                return `${seconds < 10 ? seconds.toFixed(1) : Math.round(seconds)}s`;
+            }
+            const minutes = ms / 60000;
+            return `${minutes < 10 ? minutes.toFixed(1) : Math.round(minutes)}m`;
+        }
+
+        function setMicButton(active) {
+            if (!micToggle || micToggle.dataset.locked === 'true') return;
+            micToggle.dataset.active = active ? 'true' : 'false';
+            micToggle.classList.toggle('active', active);
+            micToggle.textContent = active ? 'Disable Microphone' : 'Enable Microphone';
+        }
+
+        function createBindingPresetIntents(presetKey) {
+            switch (presetKey) {
+                case 'bass-density':
+                    return [
+                        {
+                            action: 'bindAudioFeature',
+                            feature: 'bass',
+                            target: 'gridDensity',
+                            transform: 'sqrt',
+                            scale: 72,
+                            offset: 14,
+                            min: 12,
+                            max: 96,
+                            smoothing: 0.38,
+                        },
+                    ];
+                case 'energy-chaos':
+                    return [
+                        {
+                            action: 'bindAudioFeature',
+                            feature: 'energy',
+                            target: 'chaos',
+                            mode: 'additive',
+                            transform: 'linear',
+                            scale: 0.35,
+                            offset: -0.15,
+                            min: 0.05,
+                            max: 0.95,
+                            smoothing: 0.32,
+                        },
+                    ];
+                case 'high-hue':
+                    return [
+                        {
+                            action: 'bindAudioFeature',
+                            feature: 'high',
+                            target: 'hue',
+                            transform: 'linear',
+                            scale: 240,
+                            offset: 80,
+                            min: 0,
+                            max: 360,
+                            smoothing: 0.3,
+                        },
+                    ];
+                case 'transient-intensity':
+                    return [
+                        {
+                            action: 'bindAudioFeature',
+                            feature: 'transient',
+                            target: 'intensity',
+                            mode: 'additive',
+                            transform: 'sqrt',
+                            scale: 0.45,
+                            offset: -0.08,
+                            min: 0.1,
+                            max: 1,
+                            smoothing: 0.45,
+                        },
+                    ];
+                case 'clear':
+                    return [
+                        { action: 'clearAudioBindings' },
+                    ];
+                default:
+                    return null;
+            }
+        }
+
+        function createSurfacePresetIntents(presetKey) {
+            const hue = getParam('hue') ?? 200;
+            const grid = getParam('gridDensity') ?? 36;
+            const morph = getParam('morphFactor') ?? 1;
+            switch (presetKey) {
+                case 'energy-transient':
+                    return [
+                        {
+                            action: 'bindAudioSurface',
+                            label: 'Energy × Transient Flow',
+                            axes: {
+                                x: { feature: 'energy', transform: 'linear' },
+                                y: { feature: 'transient', transform: 'sqrt', scale: 1.2 },
+                            },
+                            targets: [
+                                {
+                                    target: 'hue',
+                                    base: hue,
+                                    xWeight: 160,
+                                    yWeight: 90,
+                                    xyWeight: 120,
+                                    min: 0,
+                                    max: 360,
+                                    smoothing: 0.34,
+                                },
+                                {
+                                    target: 'morphFactor',
+                                    base: morph,
+                                    xWeight: 0.35,
+                                    yWeight: 0.6,
+                                    xyWeight: 0.4,
+                                    min: 0.1,
+                                    max: 1.8,
+                                    smoothing: 0.3,
+                                },
+                            ],
+                        },
+                    ];
+                case 'bass-energy':
+                    return [
+                        {
+                            action: 'bindAudioSurface',
+                            label: 'Bass × Energy Palette',
+                            axes: {
+                                x: { feature: 'bass', transform: 'sqrt' },
+                                y: { feature: 'energy', transform: 'linear' },
+                            },
+                            targets: [
+                                {
+                                    target: 'gridDensity',
+                                    base: grid,
+                                    xWeight: 32,
+                                    yWeight: 22,
+                                    xyWeight: 18,
+                                    min: 10,
+                                    max: 96,
+                                    smoothing: 0.36,
+                                },
+                                {
+                                    target: 'intensity',
+                                    base: getParam('intensity') ?? 0.5,
+                                    xWeight: 0.35,
+                                    yWeight: 0.4,
+                                    xyWeight: 0.28,
+                                    min: 0.15,
+                                    max: 1,
+                                    smoothing: 0.4,
+                                },
+                            ],
+                        },
+                    ];
+                default:
+                    return null;
+            }
+        }
+
+        function createStrategyPresetIntents(presetKey, keepExisting = false) {
+            if (!presetKey) return null;
+            return [
+                {
+                    action: 'configureAudioStrategy',
+                    preset: presetKey,
+                    keepExisting,
+                },
+            ];
+        }
+
+        function enqueueAndAnnounce(intents, meta = {}) {
+            if (!Array.isArray(intents) || intents.length === 0) {
+                return;
+            }
+            const { results } = dynamicEngine.enqueueIntents(intents, meta);
+            if (!results) return;
+            results
+                .filter(result => result?.message)
+                .forEach(result => {
+                    appendMessage('system', result.message, (result.status || 'INFO').toUpperCase());
+                });
+        }
+
+        function updateAutopilotToggle(state) {
+            if (!autopilotToggle) return;
+            if (!state) {
+                autopilotToggle.disabled = true;
+                autopilotToggle.textContent = 'Autopilot Offline';
+                autopilotToggle.dataset.mode = 'offline';
+                return;
+            }
+
+            autopilotToggle.disabled = false;
+            if (state.enabled) {
+                autopilotToggle.textContent = 'Pause Autopilot';
+                autopilotToggle.dataset.mode = 'enabled';
+            } else {
+                autopilotToggle.textContent = 'Resume Autopilot';
+                autopilotToggle.dataset.mode = 'disabled';
+            }
+        }
+
+        function renderAudioStatus(audioState) {
+            const fallback = 'No audio source connected. Enable the microphone or upload a track to drive choreography.';
+            if (!audioState) {
+                audioStatus.textContent = fallback;
+                setMicButton(false);
+                return;
+            }
+
+            const { source = { type: 'none' }, features } = audioState;
+            let message = fallback;
+
+            switch (source?.type) {
+                case 'microphone':
+                    message = 'Listening through the microphone in real time.';
+                    setMicButton(true);
+                    break;
+                case 'track': {
+                    const rawName = source.trackName || '';
+                    const fileName = rawName ? rawName.split('/').pop().split('?')[0] : 'Loaded track';
+                    message = source.isPlaying ? `Playing ${fileName}.` : `${fileName} ready (paused).`;
+                    setMicButton(false);
+                    break;
+                }
+                case 'element':
+                    message = source.isPlaying
+                        ? 'Audio element playing.'
+                        : 'Audio element ready. Press play to feed the engine.';
+                    setMicButton(false);
+                    break;
+                default:
+                    message = fallback;
+                    setMicButton(false);
+            }
+
+            if (features?.section) {
+                const confidence = Math.round((features.sectionConfidence ?? 0) * 100);
+                message += ` Section ${features.section.toUpperCase()} · confidence ${confidence}%`;
+            }
+
+            audioStatus.textContent = message;
+        }
+
+        function renderAudioFeatures(data) {
+            audioFeatures.innerHTML = '';
+            if (!data) {
+                audioFeatures.classList.add('empty');
+                return;
+            }
+            audioFeatures.classList.remove('empty');
+
+            const featureConfig = [
+                ['bass', 'Bass Drive'],
+                ['mid', 'Mid Presence'],
+                ['high', 'High Spark'],
+                ['energy', 'Energy'],
+                ['transient', 'Impact'],
+                ['beatStrength', 'Beat Pulse'],
+            ];
+
+            featureConfig.forEach(([key, label]) => {
+                const value = data[key] ?? 0;
+                const item = document.createElement('div');
+                item.className = 'audio-feature';
+                const title = document.createElement('div');
+                title.className = 'label';
+                title.innerHTML = `<span>${label}</span><span>${formatPercent(value)}</span>`;
+                const meter = document.createElement('div');
+                meter.className = 'meter';
+                const fill = document.createElement('span');
+                fill.style.width = formatPercent(value);
+                meter.appendChild(fill);
+                item.appendChild(title);
+                item.appendChild(meter);
+                audioFeatures.appendChild(item);
+            });
+        }
+
+        function renderBindings(bindings = []) {
+            audioBindings.innerHTML = '';
+            if (!bindings.length) {
+                audioBindings.classList.add('empty');
+                return;
+            }
+            audioBindings.classList.remove('empty');
+            bindings.forEach(binding => {
+                const detailParts = [`mode ${binding.mode}`];
+                if (binding.transform && binding.transform !== 'linear') {
+                    detailParts.push(binding.transform);
+                }
+                if (binding.invert) {
+                    detailParts.push('inverted');
+                }
+                if (typeof binding.scale === 'number') {
+                    detailParts.push(`scale ${formatNumber(binding.scale)}`);
+                }
+                if (typeof binding.offset === 'number' && binding.offset !== 0) {
+                    detailParts.push(`offset ${formatNumber(binding.offset)}`);
+                }
+                if (typeof binding.min === 'number') {
+                    detailParts.push(`min ${formatNumber(binding.min)}`);
+                }
+                if (typeof binding.max === 'number') {
+                    detailParts.push(`max ${formatNumber(binding.max)}`);
+                }
+
+                const card = document.createElement('div');
+                card.className = 'binding-card';
+                const details = document.createElement('div');
+                details.innerHTML = `<strong>${binding.feature.toUpperCase()} → ${binding.target}</strong><div>${detailParts.join(' · ')}</div>`;
+                const button = document.createElement('button');
+                button.textContent = 'Remove';
+                button.addEventListener('click', () => {
+                    dynamicEngine.enqueueIntents([{ action: 'removeAudioBinding', bindingId: binding.id }]);
+                });
+                card.appendChild(details);
+                card.appendChild(button);
+                audioBindings.appendChild(card);
+            });
+        }
+
+        function renderSurfaces(surfaces = []) {
+            audioSurfaces.innerHTML = '';
+            if (!surfaces.length) {
+                audioSurfaces.classList.add('empty');
+                return;
+            }
+            audioSurfaces.classList.remove('empty');
+
+            const describeAxis = (axis, label) => {
+                const axisParts = [`${axis.feature.toUpperCase()}`, axis.transform];
+                if (axis.invert) axisParts.push('inverted');
+                if (typeof axis.scale === 'number') axisParts.push(`×${formatNumber(axis.scale)}`);
+                if (typeof axis.offset === 'number' && axis.offset !== 0) {
+                    axisParts.push(axis.offset >= 0 ? `+${formatNumber(axis.offset)}` : formatNumber(axis.offset));
+                }
+                if (typeof axis.min === 'number') axisParts.push(`min ${formatNumber(axis.min)}`);
+                if (typeof axis.max === 'number') axisParts.push(`max ${formatNumber(axis.max)}`);
+                return `${label}: ${axisParts.join(' · ')}`;
+            };
+
+            surfaces.forEach(surface => {
+                const card = document.createElement('div');
+                card.className = 'surface-card';
+
+                const header = document.createElement('div');
+                header.className = 'surface-header';
+                const title = document.createElement('strong');
+                title.textContent =
+                    surface.label || `${surface.axes.x.feature.toUpperCase()}↔${surface.axes.y.feature.toUpperCase()}`;
+                const removeBtn = document.createElement('button');
+                removeBtn.textContent = 'Remove';
+                removeBtn.addEventListener('click', () => {
+                    dynamicEngine.enqueueIntents([{ action: 'removeAudioSurface', surfaceId: surface.id }]);
+                });
+                header.appendChild(title);
+                header.appendChild(removeBtn);
+                card.appendChild(header);
+
+                const axes = document.createElement('div');
+                axes.className = 'axes';
+                axes.innerHTML = `<span>${describeAxis(surface.axes.x, 'X')}</span><span>${describeAxis(surface.axes.y, 'Y')}</span>`;
+                card.appendChild(axes);
+
+                const targetsContainer = document.createElement('div');
+                targetsContainer.className = 'surface-targets';
+                surface.targets.forEach(target => {
+                    const detailParts = [target.mode === 'additive' ? 'additive' : 'absolute'];
+                    if (typeof target.base === 'number' && target.base !== 0) detailParts.push(`base ${formatNumber(target.base)}`);
+                    if (typeof target.xWeight === 'number' && target.xWeight !== 0) detailParts.push(`x ${formatNumber(target.xWeight)}`);
+                    if (typeof target.yWeight === 'number' && target.yWeight !== 0) detailParts.push(`y ${formatNumber(target.yWeight)}`);
+                    if (typeof target.xyWeight === 'number' && target.xyWeight !== 0) detailParts.push(`xy ${formatNumber(target.xyWeight)}`);
+                    if (typeof target.bias === 'number' && target.bias !== 0) detailParts.push(`bias ${formatNumber(target.bias)}`);
+                    if (typeof target.scale === 'number' && target.scale !== 1) detailParts.push(`scale ${formatNumber(target.scale)}`);
+                    if (typeof target.offset === 'number' && target.offset !== 0) detailParts.push(`offset ${formatNumber(target.offset)}`);
+                    if (typeof target.min === 'number') detailParts.push(`min ${formatNumber(target.min)}`);
+                    if (typeof target.max === 'number') detailParts.push(`max ${formatNumber(target.max)}`);
+
+                    const targetLine = document.createElement('div');
+                    targetLine.innerHTML = `<strong>${target.target}</strong> <span>${detailParts.join(' · ')}</span>`;
+                    targetsContainer.appendChild(targetLine);
+                });
+                card.appendChild(targetsContainer);
+
+                audioSurfaces.appendChild(card);
+            });
+        }
+
+        function renderPrograms(programs = []) {
+            audioPrograms.innerHTML = '';
+            if (!programs || programs.length === 0) {
+                audioPrograms.classList.add('empty');
+                return;
+            }
+            audioPrograms.classList.remove('empty');
+
+            programs.forEach(program => {
+                const card = document.createElement('div');
+                card.className = 'program-card';
+
+                const header = document.createElement('div');
+                header.className = 'program-header';
+                const title = document.createElement('strong');
+                title.textContent = (program.label || program.section || 'Program').toUpperCase();
+                const section = document.createElement('span');
+                section.textContent = (program.section || 'any').toUpperCase();
+                header.appendChild(title);
+                header.appendChild(section);
+                card.appendChild(header);
+
+                if (Array.isArray(program.targets) && program.targets.length) {
+                    const targets = document.createElement('div');
+                    targets.className = 'program-targets';
+                    program.targets.forEach(target => {
+                        const row = document.createElement('div');
+                        const name = document.createElement('strong');
+                        name.textContent = target.target;
+                        const detail = document.createElement('span');
+                        const rest = typeof target.rest === 'number' ? formatNumber(target.rest) : target.rest;
+                        const value = typeof target.value === 'number' ? formatNumber(target.value) : target.value;
+                        detail.textContent = rest !== undefined && value !== undefined ? `${rest} → ${value}` : value ?? '';
+                        row.appendChild(name);
+                        row.appendChild(detail);
+                        targets.appendChild(row);
+                    });
+                    card.appendChild(targets);
+                }
+
+                if (typeof program.crossfade === 'number' && program.crossfade > 0) {
+                    const meta = document.createElement('div');
+                    meta.className = 'program-meta';
+                    meta.textContent = `Crossfade ${Math.round(program.crossfade * 100)}% when inactive`;
+                    card.appendChild(meta);
+                }
+
+                audioPrograms.appendChild(card);
+            });
+        }
+
+        function renderLayerState(layers = []) {
+            if (!layerState) return;
+            layerState.innerHTML = '';
+            if (!layers || layers.length === 0) {
+                const empty = document.createElement('div');
+                empty.className = 'layer-card';
+                const title = document.createElement('h4');
+                title.textContent = 'Layers';
+                const message = document.createElement('span');
+                message.textContent = 'Layer telemetry unavailable';
+                message.style.fontSize = '11px';
+                message.style.opacity = '0.7';
+                empty.appendChild(title);
+                empty.appendChild(message);
+                layerState.appendChild(empty);
+                return;
+            }
+
+            layers.forEach(layer => {
+                const card = document.createElement('div');
+                card.className = 'layer-card';
+                const title = document.createElement('h4');
+                title.textContent = layer.label || layer.key;
+                card.appendChild(title);
+
+                const metrics = [
+                    ['Opacity', layer.state.opacity, 'percent'],
+                    ['Intensity', layer.state.intensity, 'decimal'],
+                    ['Reactivity', layer.state.reactivity, 'decimal'],
+                ];
+
+                metrics.forEach(([label, value, display]) => {
+                    if (value === undefined || value === null) return;
+                    const row = document.createElement('div');
+                    row.className = 'layer-metric';
+                    const labelEl = document.createElement('span');
+                    labelEl.textContent = label;
+                    const valueEl = document.createElement('strong');
+                    valueEl.textContent = display === 'percent' ? formatPercent(value) : formatNumber(value, 2);
+                    row.appendChild(labelEl);
+                    row.appendChild(valueEl);
+                    card.appendChild(row);
+                });
+
+                layerState.appendChild(card);
+            });
+        }
+
+        function renderAutopilot(state) {
+            if (
+                !autopilotPrograms ||
+                !autopilotStatus ||
+                !autopilotBaselines ||
+                !autopilotAnchors ||
+                !autopilotSurfaces ||
+                !autopilotFeatures
+            ) {
+                return;
+            }
+            updateAutopilotToggle(state);
+            autopilotPrograms.innerHTML = '';
+            autopilotBaselines.innerHTML = '';
+            autopilotAnchors.innerHTML = '';
+            autopilotSurfaces.innerHTML = '';
+            autopilotSurfaces.classList.add('empty');
+            autopilotFeatures.innerHTML = '';
+            autopilotFeatures.classList.add('empty');
+
+            if (!state) {
+                autopilotStatus.textContent = 'Offline';
+                const span = document.createElement('span');
+                span.textContent = 'Autopilot inactive';
+                span.style.opacity = '0.6';
+                autopilotBaselines.appendChild(span);
+                const anchorMsg = document.createElement('span');
+                anchorMsg.className = 'autopilot-anchor-empty';
+                anchorMsg.textContent = 'Autopilot inactive';
+                autopilotAnchors.appendChild(anchorMsg);
+                const featureMsg = document.createElement('span');
+                featureMsg.textContent = 'Autopilot inactive';
+                featureMsg.style.opacity = '0.6';
+                autopilotFeatures.appendChild(featureMsg);
+                autopilotFeatures.classList.remove('empty');
+                autopilotPrograms.classList.add('empty');
+                autopilotSurfaces.classList.add('empty');
+                return;
+            }
+
+            autopilotStatus.textContent = state.enabled ? 'Active' : 'Paused';
+
+            const baselineEntries = [];
+            if (typeof state.baselines?.energy === 'number') {
+                baselineEntries.push(['Energy', formatPercent(state.baselines.energy)]);
+            }
+            if (typeof state.baselines?.bass === 'number') {
+                baselineEntries.push(['Bass', formatPercent(state.baselines.bass)]);
+            }
+            if (state.section) {
+                baselineEntries.push(['Section', state.section.toUpperCase()]);
+            }
+
+            if (baselineEntries.length === 0) {
+                const span = document.createElement('span');
+                span.textContent = 'Awaiting telemetry…';
+                span.style.opacity = '0.6';
+                autopilotBaselines.appendChild(span);
+            } else {
+                baselineEntries.forEach(([label, value]) => {
+                    const span = document.createElement('span');
+                    const labelEl = document.createElement('strong');
+                    labelEl.textContent = label;
+                    const valueEl = document.createElement('span');
+                    valueEl.textContent = value;
+                    span.appendChild(labelEl);
+                    span.appendChild(valueEl);
+                    autopilotBaselines.appendChild(span);
+                });
+            }
+
+            const anchors = Array.isArray(state.anchors)
+                ? state.anchors.filter(anchor => anchor && anchor.parameter)
+                : [];
+
+            const anchorControls = document.createElement('div');
+            anchorControls.className = 'anchor-controls';
+
+            const captureAnchorsBtn = document.createElement('button');
+            captureAnchorsBtn.type = 'button';
+            captureAnchorsBtn.className = 'anchor-control-btn';
+            captureAnchorsBtn.textContent = 'Capture Current Mix';
+            captureAnchorsBtn.addEventListener('click', () => {
+                enqueueAndAnnounce([{ action: 'captureAutopilotAnchors' }], { preset: 'autopilot:capture-all' });
+            });
+            anchorControls.appendChild(captureAnchorsBtn);
+
+            const clearAnchorsBtn = document.createElement('button');
+            clearAnchorsBtn.type = 'button';
+            clearAnchorsBtn.className = 'anchor-control-btn';
+            clearAnchorsBtn.textContent = 'Clear Anchors';
+            clearAnchorsBtn.disabled = anchors.length === 0;
+            clearAnchorsBtn.addEventListener('click', () => {
+                enqueueAndAnnounce([{ action: 'clearAutopilotAnchors' }], { preset: 'autopilot:clear-all' });
+            });
+            anchorControls.appendChild(clearAnchorsBtn);
+
+            autopilotAnchors.appendChild(anchorControls);
+
+            if (anchors.length === 0) {
+                const empty = document.createElement('span');
+                empty.className = 'autopilot-anchor-empty';
+                empty.textContent = state.enabled
+                    ? 'Adjust parameters to teach the autopilot your preferred baselines.'
+                    : 'Anchors will resume when the autopilot is re-enabled.';
+                autopilotAnchors.appendChild(empty);
+            } else {
+                anchors.forEach(anchor => {
+                    const card = document.createElement('div');
+                    card.className = 'autopilot-anchor';
+
+                    const label = document.createElement('strong');
+                    label.textContent = formatParameterLabel(anchor.parameter);
+                    card.appendChild(label);
+
+                    const valueEl = document.createElement('span');
+                    valueEl.className = 'anchor-value';
+                    valueEl.textContent = formatParameterValue(anchor.parameter, anchor.value);
+                    card.appendChild(valueEl);
+
+                    const metaParts = [];
+                    if (anchor.source) {
+                        metaParts.push(formatAnchorSource(anchor.source));
+                    }
+                    if (Number.isFinite(anchor.updatedMsAgo)) {
+                        metaParts.push(formatTimeAgo(anchor.updatedMsAgo));
+                    }
+                    if (Number.isFinite(anchor.updates) && anchor.updates > 1) {
+                        metaParts.push(`${anchor.updates} updates`);
+                    }
+                    if (anchor.locked) {
+                        metaParts.push('locked');
+                    }
+                    if (metaParts.length > 0) {
+                        const metaLine = document.createElement('span');
+                        metaLine.className = 'anchor-meta';
+                        metaLine.textContent = metaParts.join(' • ');
+                        card.appendChild(metaLine);
+                    }
+
+                    const promptText = typeof anchor.prompt === 'string' ? anchor.prompt.trim() : '';
+                    if (promptText) {
+                        const promptLine = document.createElement('span');
+                        promptLine.className = 'anchor-meta';
+                        const trimmed = promptText.length > 80 ? `${promptText.slice(0, 77)}…` : promptText;
+                        promptLine.textContent = `“${trimmed}”`;
+                        card.appendChild(promptLine);
+                    }
+
+                    const anchorActions = document.createElement('div');
+                    anchorActions.className = 'anchor-card-actions';
+
+                    const refreshBtn = document.createElement('button');
+                    refreshBtn.type = 'button';
+                    refreshBtn.className = 'anchor-chip-btn';
+                    refreshBtn.textContent = 'Refresh';
+                    refreshBtn.addEventListener('click', () => {
+                        enqueueAndAnnounce(
+                            [
+                                {
+                                    action: 'captureAutopilotAnchors',
+                                    parameters: [anchor.parameter],
+                                },
+                            ],
+                            { preset: `autopilot:capture:${anchor.parameter}` },
+                        );
+                    });
+                    anchorActions.appendChild(refreshBtn);
+
+                    const releaseBtn = document.createElement('button');
+                    releaseBtn.type = 'button';
+                    releaseBtn.className = 'anchor-chip-btn';
+                    releaseBtn.textContent = 'Release';
+                    releaseBtn.addEventListener('click', () => {
+                        enqueueAndAnnounce(
+                            [
+                                {
+                                    action: 'clearAutopilotAnchors',
+                                    parameters: [anchor.parameter],
+                                },
+                            ],
+                            { preset: `autopilot:clear:${anchor.parameter}` },
+                        );
+                    });
+                    anchorActions.appendChild(releaseBtn);
+
+                    card.appendChild(anchorActions);
+                    autopilotAnchors.appendChild(card);
+                });
+            }
+
+            const featureRanges = Array.isArray(state.featureRanges)
+                ? state.featureRanges.filter(range => Number.isFinite(range.min) && Number.isFinite(range.max))
+                : [];
+
+            if (featureRanges.length === 0) {
+                const span = document.createElement('span');
+                span.textContent = state.enabled ? 'Collecting feature stats…' : 'Feature stats paused';
+                span.style.opacity = '0.6';
+                autopilotFeatures.appendChild(span);
+                autopilotFeatures.classList.remove('empty');
+            } else {
+                autopilotFeatures.classList.remove('empty');
+                featureRanges.forEach(range => {
+                    const card = document.createElement('div');
+                    card.className = 'autopilot-feature';
+
+                    const label = document.createElement('strong');
+                    label.textContent = formatFeatureLabel(range.feature);
+                    card.appendChild(label);
+
+                    const spanRange = document.createElement('span');
+                    spanRange.textContent = `${formatFeatureValue(range.feature, range.min)} – ${formatFeatureValue(
+                        range.feature,
+                        range.max,
+                    )}`;
+                    card.appendChild(spanRange);
+
+                    const metaParts = [];
+                    if (Number.isFinite(range.avg)) {
+                        metaParts.push(`avg ${formatFeatureValue(range.feature, range.avg)}`);
+                    }
+                    if (Number.isFinite(range.samples)) {
+                        metaParts.push(`${Math.round(range.samples)} samples`);
+                    }
+                    if (metaParts.length > 0) {
+                        const info = document.createElement('span');
+                        info.textContent = metaParts.join(' • ');
+                        info.style.opacity = '0.7';
+                        card.appendChild(info);
+                    }
+
+                    autopilotFeatures.appendChild(card);
+                });
+            }
+
+            const surfaces = Array.isArray(state.surfaces) ? state.surfaces : [];
+            if (surfaces.length > 0) {
+                autopilotSurfaces.classList.remove('empty');
+                surfaces.forEach(surface => {
+                    const card = document.createElement('div');
+                    card.className = 'autopilot-surface';
+                    if (!state.enabled || !surface.active) {
+                        card.classList.add('inactive');
+                    }
+
+                    const label = document.createElement('strong');
+                    const labelText = (surface.label || surface.key || '')
+                        .replace(/^Autopilot:\s*/i, '')
+                        .trim() || surface.key || 'Surface';
+                    label.textContent = labelText;
+                    card.appendChild(label);
+
+                    if (Array.isArray(surface.targets) && surface.targets.length > 0) {
+                        const targets = document.createElement('span');
+                        targets.className = 'autopilot-surface-targets';
+                        targets.textContent = `Targets: ${surface.targets.join(', ')}`;
+                        card.appendChild(targets);
+                    }
+
+                    if (surface.axes) {
+                        const axes = document.createElement('span');
+                        axes.className = 'autopilot-surface-axes';
+                        const axisParts = [];
+                        if (surface.axes.x) {
+                            axisParts.push(
+                                `${formatFeatureLabel(surface.axes.x.feature)} ${formatFeatureValue(
+                                    surface.axes.x.feature,
+                                    surface.axes.x.min,
+                                )} – ${formatFeatureValue(surface.axes.x.feature, surface.axes.x.max)}`,
+                            );
+                        }
+                        if (surface.axes.y) {
+                            axisParts.push(
+                                `${formatFeatureLabel(surface.axes.y.feature)} ${formatFeatureValue(
+                                    surface.axes.y.feature,
+                                    surface.axes.y.min,
+                                )} – ${formatFeatureValue(surface.axes.y.feature, surface.axes.y.max)}`,
+                            );
+                        }
+                        if (axisParts.length > 0) {
+                            axes.textContent = axisParts.join(' • ');
+                            card.appendChild(axes);
+                        }
+                    }
+
+                    const status = document.createElement('span');
+                    status.className = 'autopilot-surface-status';
+                    let statusText = 'Idle';
+                    if (!state.enabled) {
+                        statusText = 'Paused';
+                    } else if (surface.active) {
+                        statusText = 'Active';
+                    } else {
+                        statusText = 'Configuring';
+                    }
+                    if (surface.active && surface.surfaceId) {
+                        statusText += ` • ${surface.surfaceId.slice(-6)}`;
+                    }
+                    status.textContent = statusText;
+                    card.appendChild(status);
+
+                    autopilotSurfaces.appendChild(card);
+                });
+            }
+
+            const programs = Array.isArray(state.programs) ? state.programs : [];
+            if (programs.length === 0) {
+                autopilotPrograms.classList.add('empty');
+                return;
+            }
+            autopilotPrograms.classList.remove('empty');
+
+            programs.forEach(program => {
+                const card = document.createElement('div');
+                card.className = 'autopilot-program';
+                if (program.active === false) {
+                    card.classList.add('inactive');
+                }
+
+                const title = document.createElement('strong');
+                title.textContent = program.label || program.id;
+                card.appendChild(title);
+
+                const meta = document.createElement('div');
+                meta.className = 'autopilot-meta';
+
+                const status = document.createElement('span');
+                status.textContent = program.active === false ? 'paused' : 'active';
+                meta.appendChild(status);
+
+                const last = document.createElement('span');
+                last.textContent = `last ${formatTimeAgo(program.lastTriggerMsAgo)}`;
+                meta.appendChild(last);
+
+                const cooldown = document.createElement('span');
+                cooldown.textContent = `cooldown ${formatCooldown(program.cooldownMsRemaining)}`;
+                meta.appendChild(cooldown);
+
+                card.appendChild(meta);
+
+                if (program.lastSummary) {
+                    const summary = document.createElement('div');
+                    summary.className = 'autopilot-summary';
+                    summary.textContent = program.lastSummary;
+                    card.appendChild(summary);
+                }
+
+                const toggleBtn = document.createElement('button');
+                const programActive = program.active !== false;
+                toggleBtn.textContent = programActive ? 'Pause Program' : 'Resume Program';
+                toggleBtn.addEventListener('click', () => {
+                    dynamicEngine.enqueueIntents([
+                        {
+                            action: 'setAutopilotState',
+                            programId: program.id,
+                            programEnabled: !programActive,
+                        },
+                    ]);
+                });
+                card.appendChild(toggleBtn);
+
+                autopilotPrograms.appendChild(card);
+            });
+        }
+
+        function renderState(snapshot) {
+            stateSummary.innerHTML = '';
+            const entries = [
+                ['Variation', `#${snapshot.variation + 1}`],
+                ['Chaos', snapshot.parameters.chaos.toFixed(2)],
+                ['Speed', snapshot.parameters.speed.toFixed(2)],
+                ['Hue', `${Math.round(snapshot.parameters.hue)}°`],
+                ['Intensity', snapshot.parameters.intensity.toFixed(2)],
+                ['Saturation', snapshot.parameters.saturation.toFixed(2)],
+                ['Morph', snapshot.parameters.morphFactor.toFixed(2)],
+                ['Grid', snapshot.parameters.gridDensity.toFixed(1)],
+            ];
+
+            entries.forEach(([label, value]) => {
+                const chip = document.createElement('div');
+                chip.className = 'state-chip';
+                const title = document.createElement('span');
+                title.textContent = label;
+                const valueEl = document.createElement('span');
+                valueEl.className = 'value';
+                valueEl.textContent = value;
+                chip.appendChild(title);
+                chip.appendChild(valueEl);
+                stateSummary.appendChild(chip);
+            });
+
+            if (snapshot.envelopes.length) {
+                const envelopeChip = document.createElement('div');
+                envelopeChip.className = 'state-chip';
+                envelopeChip.innerHTML = '<strong>Envelopes</strong>';
+                snapshot.envelopes.forEach(env => {
+                    const item = document.createElement('div');
+                    item.style.fontSize = '11px';
+                    item.textContent = `${env.target} → ${env.remaining.toFixed(1)}s (${env.easing})`;
+                    envelopeChip.appendChild(item);
+                });
+                stateSummary.appendChild(envelopeChip);
+            }
+
+            if (snapshot.audio) {
+                renderAudioStatus(snapshot.audio);
+                renderAudioFeatures(snapshot.audio.features);
+                renderBindings(snapshot.audio.bindings);
+                renderSurfaces(snapshot.audio.surfaces);
+                renderPrograms(snapshot.audio.strategies);
+            } else {
+                renderAudioStatus(null);
+                renderAudioFeatures(null);
+                renderBindings([]);
+                renderSurfaces([]);
+                renderPrograms([]);
+            }
+
+            renderLayerState(snapshot.visualizers);
+            renderAutopilot(snapshot.autopilot);
+        }
+
+        dynamicEngine.on('state', renderState);
+        dynamicEngine.on('log', entry => {
+            if (entry.level === 'debug') return;
+            appendMessage('system', entry.message, entry.level.toUpperCase());
+        });
+
+        promptForm.addEventListener('submit', event => {
+            event.preventDefault();
+            const prompt = promptInput.value.trim();
+            if (!prompt) return;
+
+            appendMessage('user', prompt, 'PROMPT');
+            promptInput.value = '';
+
+            const { intents, summary } = router.processPrompt(prompt);
+            if (summary) {
+                appendMessage('system', summary, 'ROUTER');
+            }
+
+            const { results } = dynamicEngine.enqueueIntents(intents, { prompt });
+            results
+                .filter(result => result.message)
+                .forEach(result => {
+                    appendMessage('system', result.message, (result.status || 'INFO').toUpperCase());
+                });
+        });
+
+        quickButtons.forEach(button => {
+            button.addEventListener('click', () => {
+                promptInput.value = button.dataset.prompt;
+                promptForm.requestSubmit();
+            });
+        });
+
+        if (audioBindingPresets) {
+            audioBindingPresets.addEventListener('click', event => {
+                const button = event.target.closest('button[data-binding-preset]');
+                if (!button) return;
+                const preset = button.dataset.bindingPreset;
+                const intents = createBindingPresetIntents(preset);
+                enqueueAndAnnounce(intents, { preset: `audio-binding:${preset}` });
+            });
+        }
+
+        if (audioSurfacePresets) {
+            audioSurfacePresets.addEventListener('click', event => {
+                const button = event.target.closest('button[data-surface-preset]');
+                if (!button) return;
+                const preset = button.dataset.surfacePreset;
+                const intents = createSurfacePresetIntents(preset);
+                enqueueAndAnnounce(intents, { preset: `audio-surface:${preset}` });
+            });
+        }
+
+        if (audioStrategyPresets) {
+            audioStrategyPresets.addEventListener('click', event => {
+                const button = event.target.closest('button[data-strategy-preset]');
+                if (!button) return;
+                const preset = button.dataset.strategyPreset;
+                const keepExisting = button.dataset.keepExisting === 'true';
+                const intents = createStrategyPresetIntents(preset, keepExisting);
+                enqueueAndAnnounce(intents, { preset: `audio-strategy:${preset}` });
+            });
+        }
+
+        if (autopilotToggle) {
+            autopilotToggle.addEventListener('click', () => {
+                if (autopilotToggle.disabled) return;
+                const mode = autopilotToggle.dataset.mode;
+                const targetEnabled = mode !== 'enabled';
+                enqueueAndAnnounce(
+                    [
+                        { action: 'setAutopilotState', enabled: targetEnabled },
+                    ],
+                    { source: 'autopilot-toggle' },
+                );
+            });
+        }
+
+        if (audioPlayer) {
+            const updateStatusFromElement = () => {
+                renderAudioStatus({
+                    source: audioChoreographer.getSourceInfo?.(),
+                    features: audioChoreographer.getFeatures(),
+                });
+            };
+
+            (async () => {
+                try {
+                    await audioChoreographer.attachAudioElement(audioPlayer);
+                } catch (error) {
+                    console.warn('Audio router initialization failed', error);
+                }
+            })();
+
+            audioPlayer.addEventListener('play', async () => {
+                if (audioChoreographer.isMicrophoneActive?.()) {
+                    audioChoreographer.disableMicrophone();
+                    appendMessage('system', 'Microphone feed paused while the track plays.', 'AUDIO');
+                    setMicButton(false);
+                }
+                try {
+                    await audioChoreographer.attachAudioElement(audioPlayer);
+                } catch (error) {
+                    console.error('Audio routing failed', error);
+                    appendMessage('system', `Audio routing failed: ${error.message}`, 'ERROR');
+                } finally {
+                    updateStatusFromElement();
+                }
+            });
+
+            ['pause', 'ended', 'timeupdate', 'volumechange', 'loadeddata'].forEach(eventName => {
+                audioPlayer.addEventListener(eventName, updateStatusFromElement);
+            });
+
+            audioPlayer.addEventListener('error', event => {
+                const error = event?.target?.error;
+                if (!error) return;
+                console.error('Audio element error', error);
+                appendMessage('system', `Audio error: ${error.message || error.code}`, 'ERROR');
+                updateStatusFromElement();
+            });
+        }
+
+        if (micToggle) {
+            if (!navigator.mediaDevices?.getUserMedia) {
+                micToggle.disabled = true;
+                micToggle.dataset.locked = 'true';
+                micToggle.textContent = 'Microphone unsupported';
+                micToggle.title = 'Microphone capture is not available in this environment.';
+            }
+
+            micToggle.addEventListener('click', async () => {
+                if (micToggle.disabled) return;
+                const active = micToggle.dataset.active === 'true';
+                micToggle.disabled = true;
+                try {
+                    if (active) {
+                        audioChoreographer.disableMicrophone();
+                        appendMessage('system', 'Microphone feed disabled.', 'AUDIO');
+                        setMicButton(false);
+                    } else {
+                        await audioChoreographer.enableMicrophone();
+                        appendMessage('system', 'Microphone feed active. Map live sound to your visuals.', 'AUDIO');
+                        renderAudioFeatures(audioChoreographer.getFeatures());
+                        setMicButton(true);
+                    }
+                } catch (error) {
+                    console.error('Microphone toggle failed', error);
+                    appendMessage('system', `Microphone access failed: ${error.message}`, 'ERROR');
+                    setMicButton(false);
+                } finally {
+                    if (micToggle.dataset.locked === 'true') {
+                        micToggle.disabled = true;
+                    } else {
+                        micToggle.disabled = false;
+                    }
+                    renderAudioStatus({
+                        source: audioChoreographer.getSourceInfo?.(),
+                        features: audioChoreographer.getFeatures(),
+                    });
+                }
+            });
+        }
+
+        audioUpload.addEventListener('change', async event => {
+            const [file] = event.target.files;
+            if (!file) return;
+            appendMessage('system', `Loading ${file.name} for analysis...`, 'AUDIO');
+            try {
+                await audioChoreographer.loadFile(file, audioPlayer);
+                appendMessage('system', `${file.name} ready. Describe how to choreograph with it.`, 'AUDIO');
+                setMicButton(false);
+                renderAudioStatus({
+                    source: audioChoreographer.getSourceInfo?.(),
+                    features: audioChoreographer.getFeatures(),
+                });
+            } catch (error) {
+                console.error('Audio load failed', error);
+                appendMessage('system', `Audio load failed: ${error.message}`, 'ERROR');
+            }
+        });
+
+        audioChoreographer.on('features', features => {
+            renderAudioFeatures(features);
+            renderAudioStatus({
+                source: audioChoreographer.getSourceInfo?.(),
+                features,
+            });
+        });
+        audioChoreographer.on('bindings', renderBindings);
+        audioChoreographer.on('surfaces', renderSurfaces);
+        audioChoreographer.on('strategies', renderPrograms);
+
+        appendMessage('system', 'AI Conductor ready. Describe a visual move to begin.', 'STATUS');
+        renderState(dynamicEngine.getStateSnapshot());
+    </script>
+</body>
+</html>
