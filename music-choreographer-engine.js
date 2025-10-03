@@ -38,6 +38,15 @@ export class MusicVideoChoreographer {
 
         this.reactivityController = new ReactivityController();
         this.xyPad = null;
+        this.axisLocks = { x: false, y: false };
+        this.reactivityParameterOrder = [];
+        this.reactivityModulatorOrder = [];
+        this.reactivityTelemetry = {
+            parameterNodes: new Map(),
+            modulatorNodes: new Map(),
+            lastRenderedAt: 0,
+            initialized: false
+        };
 
         this.sequences = [];
         this.currentSequence = null;
@@ -97,6 +106,8 @@ export class MusicVideoChoreographer {
         this.setupEventListeners();
         this.initializeAutomationControls();
         this.setupReactivityPad();
+        this.updateAxisLockUi();
+        this.renderReactivityTelemetry();
         this.updateAutomationUiState();
 
         await this.initializeAudio();
@@ -136,12 +147,71 @@ export class MusicVideoChoreographer {
             saveAutomationSnapshotBtn: document.getElementById('save-automation-snapshot-btn'),
             loadAutomationSnapshotBtn: document.getElementById('load-automation-snapshot-btn'),
             automationSnapshotInfo: document.getElementById('automation-snapshot-info'),
+            reactivityParameterList: document.getElementById('reactivity-parameter-list'),
+            reactivityModulatorList: document.getElementById('reactivity-modulator-list'),
+            lockXAxisBtn: document.getElementById('lock-axis-x'),
+            lockYAxisBtn: document.getElementById('lock-axis-y'),
+            resetPadBtn: document.getElementById('reset-reactivity-btn'),
             sequenceList: document.getElementById('sequence-list')
         };
     }
 
     configureReactivitySystem() {
+        this.reactivityParameterOrder = [
+            'gridDensity',
+            'morphFactor',
+            'chaos',
+            'speed',
+            'intensity',
+            'saturation',
+            'dimension',
+            'hue'
+        ];
+
+        this.reactivityModulatorOrder = ['orbitalSweep', 'beatSurge', 'dimensionFlux', 'momentumRise'];
+
+        this.reactivityTelemetry.initialized = false;
+        this.reactivityTelemetry.parameterNodes = new Map();
+        this.reactivityTelemetry.modulatorNodes = new Map();
+
         this.reactivityController
+            .registerModulator('orbitalSweep', {
+                type: 'lfo',
+                frequency: 0.075,
+                amplitude: 0.45,
+                offset: 0,
+                phaseOffset: Math.PI / 6,
+                smoothing: 0.1,
+                range: [-1, 1],
+                beatBoost: 0.25,
+                beatBoostDecay: 0.6,
+                initialValue: 0
+            })
+            .registerModulator('beatSurge', {
+                type: 'beatEnvelope',
+                amount: 0.95,
+                decay: 0.58,
+                range: [0, 1.2],
+                smoothing: 0.1,
+                base: 0,
+                attack: 1.15
+            })
+            .registerModulator('dimensionFlux', {
+                type: 'lfo',
+                shape: 'triangle',
+                frequency: 0.045,
+                amplitude: 0.35,
+                offset: 0,
+                smoothing: 0.12,
+                range: [-1, 1],
+                phaseOffset: -Math.PI / 4
+            })
+            .registerModulator('momentumRise', {
+                type: 'custom',
+                smoothing: 0.3,
+                range: [0, 1],
+                compute: ({ audio }) => Math.max(0, Math.min(1, audio.momentum ?? 0))
+            })
             .registerParameter('gridDensity', {
                 base: 18,
                 sources: [
@@ -151,6 +221,10 @@ export class MusicVideoChoreographer {
                 liveAxes: { x: 22, y: 12 },
                 range: [8, 96],
                 smoothing: 0.22,
+                modulators: [
+                    { name: 'orbitalSweep', weight: 9 },
+                    { name: 'beatSurge', weight: 22 }
+                ],
                 transform: (value, meta) => {
                     const densityBoost = meta.context?.sequence?.densityBoost ?? 0;
                     return Math.round(value + densityBoost);
@@ -165,6 +239,10 @@ export class MusicVideoChoreographer {
                 liveAxes: { x: 0.4, y: 0.3 },
                 range: [0.4, 1.9],
                 smoothing: 0.24,
+                modulators: [
+                    { name: 'orbitalSweep', weight: 0.25 },
+                    { name: 'dimensionFlux', weight: 0.35 }
+                ],
                 transform: (value, meta) => {
                     if (meta.context?.sequence?.rotation === 'chaos') {
                         value += 0.35;
@@ -184,6 +262,10 @@ export class MusicVideoChoreographer {
                 range: [0, 1],
                 smoothing: 0.28,
                 beatResponse: 0.18,
+                modulators: [
+                    { name: 'beatSurge', weight: 0.45 },
+                    { name: 'momentumRise', weight: 0.4 }
+                ],
                 transform: (value, meta) => {
                     const baseChaos = meta.context?.sequence?.chaos;
                     if (typeof baseChaos === 'number') {
@@ -202,6 +284,10 @@ export class MusicVideoChoreographer {
                 range: [0.25, 3],
                 smoothing: 0.18,
                 beatResponse: 0.25,
+                modulators: [
+                    { name: 'momentumRise', weight: 0.65 },
+                    { name: 'orbitalSweep', weight: 0.12, mode: 'multiply' }
+                ],
                 transform: (value, meta) => {
                     const baseSpeed = meta.context?.sequence?.speed;
                     if (typeof baseSpeed === 'number') {
@@ -218,7 +304,11 @@ export class MusicVideoChoreographer {
                 ],
                 liveAxes: { x: 0.2 },
                 range: [0.2, 1],
-                smoothing: 0.15
+                smoothing: 0.15,
+                modulators: [
+                    { name: 'beatSurge', weight: 0.35 },
+                    { name: 'momentumRise', weight: 0.45 }
+                ]
             })
             .registerParameter('saturation', {
                 base: 0.62,
@@ -228,7 +318,11 @@ export class MusicVideoChoreographer {
                 ],
                 liveAxes: { y: 0.2 },
                 range: [0.2, 1],
-                smoothing: 0.2
+                smoothing: 0.2,
+                modulators: [
+                    { name: 'orbitalSweep', weight: 0.18 },
+                    { name: 'beatSurge', weight: 0.22 }
+                ]
             })
             .registerParameter('dimension', {
                 base: 3.35,
@@ -238,6 +332,10 @@ export class MusicVideoChoreographer {
                 liveAxes: { y: 0.35 },
                 range: [3.1, 4.4],
                 smoothing: 0.3,
+                modulators: [
+                    { name: 'dimensionFlux', weight: 0.25 },
+                    { name: 'beatSurge', weight: 0.18 }
+                ],
                 transform: (value, meta) => value + meta.audio.spectralTilt * 0.4
             })
             .registerParameter('rot4dXW', {
@@ -248,7 +346,8 @@ export class MusicVideoChoreographer {
                     const seq = meta.context?.sequence;
                     const baseFreq = seq?.rotation === 'extreme' ? 3.5 : seq?.rotation === 'chaos' ? 2.4 : 1.1;
                     const amplitude = 0.7 + meta.audio.bass * 0.8;
-                    return Math.sin(t * baseFreq) * amplitude + meta.liveVector.y * 0.9;
+                    const orbital = meta.controller?.getModulatorValue('orbitalSweep') ?? 0;
+                    return Math.sin(t * baseFreq) * amplitude + meta.liveVector.y * 0.9 + orbital * 0.4;
                 }
             })
             .registerParameter('rot4dYW', {
@@ -259,7 +358,8 @@ export class MusicVideoChoreographer {
                     const seq = meta.context?.sequence;
                     const baseFreq = seq?.rotation === 'extreme' ? 2.9 : seq?.rotation === 'accelerate' ? 1.8 : 0.9;
                     const amplitude = 0.6 + meta.audio.mid * 0.9;
-                    return Math.cos(t * baseFreq) * amplitude + meta.liveVector.x * 0.6;
+                    const flux = meta.controller?.getModulatorValue('dimensionFlux') ?? 0;
+                    return Math.cos(t * baseFreq) * amplitude + meta.liveVector.x * 0.6 + flux * 0.45;
                 }
             })
             .registerParameter('rot4dZW', {
@@ -270,12 +370,18 @@ export class MusicVideoChoreographer {
                     const seq = meta.context?.sequence;
                     const baseFreq = seq?.rotation === 'extreme' ? 4.1 : 1.6;
                     const amplitude = 0.5 + meta.audio.high * 0.9;
-                    return Math.sin(t * baseFreq + meta.audio.high * Math.PI) * amplitude + meta.liveVector.y * 0.4;
+                    const surge = meta.controller?.getModulatorValue('beatSurge') ?? 0;
+                    return Math.sin(t * baseFreq + meta.audio.high * Math.PI) * amplitude + meta.liveVector.y * 0.4 + surge * 0.35;
                 }
             })
             .registerParameter('hue', {
                 wrap: 360,
                 smoothing: 0.12,
+                modulators: [
+                    { name: 'orbitalSweep', weight: 24 },
+                    { name: 'dimensionFlux', weight: 18 },
+                    { name: 'beatSurge', weight: 12 }
+                ],
                 compute: (meta) => {
                     const t = meta.context?.time ?? 0;
                     const seq = meta.context?.sequence;
@@ -380,6 +486,18 @@ export class MusicVideoChoreographer {
             importAutomationBtn.addEventListener('click', () => this.promptAutomationImport());
         }
 
+        if (this.dom.lockXAxisBtn) {
+            this.dom.lockXAxisBtn.addEventListener('click', () => this.toggleAxisLock('x'));
+        }
+
+        if (this.dom.lockYAxisBtn) {
+            this.dom.lockYAxisBtn.addEventListener('click', () => this.toggleAxisLock('y'));
+        }
+
+        if (this.dom.resetPadBtn) {
+            this.dom.resetPadBtn.addEventListener('click', () => this.resetLiveVector());
+        }
+
         if (automationGlideInput) {
             automationGlideInput.addEventListener('input', (event) => {
                 const value = Number.isFinite(event.target.valueAsNumber)
@@ -428,6 +546,177 @@ export class MusicVideoChoreographer {
         const initialVector = this.reactivityController.getLiveVector();
         this.xyPad.setValue(initialVector, true);
         this.updateReactivityReadout(initialVector);
+    }
+
+    toggleAxisLock(axis) {
+        if (!axis || (axis !== 'x' && axis !== 'y')) return;
+        this.axisLocks[axis] = !this.axisLocks[axis];
+        this.updateAxisLockUi();
+        this.commitLiveVector(this.reactivityController.getLiveVector(), { updatePad: true });
+        this.applyLiveVector();
+        const label = axis.toUpperCase();
+        const state = this.axisLocks[axis] ? 'locked' : 'unlocked';
+        this.updateStatus(`${label} axis ${state}`, 'info');
+    }
+
+    updateAxisLockUi() {
+        if (!this.axisLocks) {
+            this.axisLocks = { x: false, y: false };
+        }
+
+        if (this.dom.lockXAxisBtn) {
+            const locked = Boolean(this.axisLocks.x);
+            this.dom.lockXAxisBtn.classList.toggle('active', locked);
+            this.dom.lockXAxisBtn.setAttribute('aria-pressed', locked ? 'true' : 'false');
+            this.dom.lockXAxisBtn.textContent = locked ? '🔓 Unlock X Axis' : '🔒 Lock X Axis';
+        }
+
+        if (this.dom.lockYAxisBtn) {
+            const locked = Boolean(this.axisLocks.y);
+            this.dom.lockYAxisBtn.classList.toggle('active', locked);
+            this.dom.lockYAxisBtn.setAttribute('aria-pressed', locked ? 'true' : 'false');
+            this.dom.lockYAxisBtn.textContent = locked ? '🔓 Unlock Y Axis' : '🔒 Lock Y Axis';
+        }
+    }
+
+    resetLiveVector(announce = true) {
+        const vector = this.commitLiveVector({ x: 0, y: 0 }, { updatePad: true });
+        this.applyLiveVector();
+        if (announce) {
+            this.updateStatus('Reactivity pad centered', 'info');
+        }
+        return vector;
+    }
+
+    initializeTelemetryLists() {
+        if (this.reactivityTelemetry.initialized) return;
+
+        const { reactivityParameterList, reactivityModulatorList } = this.dom;
+
+        if (reactivityParameterList && Array.isArray(this.reactivityParameterOrder)) {
+            reactivityParameterList.innerHTML = '';
+            this.reactivityTelemetry.parameterNodes = new Map();
+            this.reactivityParameterOrder.forEach((name) => {
+                const item = document.createElement('li');
+                item.className = 'telemetry-item';
+                const label = document.createElement('span');
+                label.className = 'telemetry-label';
+                label.textContent = this.getParameterTelemetryLabel(name);
+                const value = document.createElement('span');
+                value.className = 'telemetry-value';
+                value.textContent = '--';
+                item.appendChild(label);
+                item.appendChild(value);
+                reactivityParameterList.appendChild(item);
+                this.reactivityTelemetry.parameterNodes.set(name, value);
+            });
+        }
+
+        if (reactivityModulatorList && Array.isArray(this.reactivityModulatorOrder)) {
+            reactivityModulatorList.innerHTML = '';
+            this.reactivityTelemetry.modulatorNodes = new Map();
+            this.reactivityModulatorOrder.forEach((name) => {
+                const item = document.createElement('li');
+                item.className = 'telemetry-item';
+                const label = document.createElement('span');
+                label.className = 'telemetry-label';
+                label.textContent = this.getModulatorTelemetryLabel(name);
+                const value = document.createElement('span');
+                value.className = 'telemetry-value';
+                value.textContent = '--';
+                item.appendChild(label);
+                item.appendChild(value);
+                reactivityModulatorList.appendChild(item);
+                this.reactivityTelemetry.modulatorNodes.set(name, value);
+            });
+        }
+
+        this.reactivityTelemetry.initialized = true;
+    }
+
+    renderReactivityTelemetry(params = this.lastReactiveParameters, modulators = this.reactivityController.getModulatorSnapshot()) {
+        if (!this.dom.reactivityParameterList && !this.dom.reactivityModulatorList) {
+            return;
+        }
+
+        this.initializeTelemetryLists();
+
+        const now = this.getNow();
+        if (now - (this.reactivityTelemetry.lastRenderedAt || 0) < 80) {
+            return;
+        }
+        this.reactivityTelemetry.lastRenderedAt = now;
+
+        const parameterValues = params || this.lastReactiveParameters || {};
+        this.reactivityTelemetry.parameterNodes.forEach((node, name) => {
+            const value = parameterValues[name];
+            node.textContent = this.formatParameterTelemetryValue(name, value);
+        });
+
+        const modValues = modulators || this.reactivityController.getModulatorSnapshot() || {};
+        this.reactivityTelemetry.modulatorNodes.forEach((node, name) => {
+            const value = modValues[name];
+            node.textContent = this.formatModulatorTelemetryValue(name, value);
+        });
+    }
+
+    getParameterTelemetryLabel(name) {
+        const labels = {
+            gridDensity: 'Grid Density',
+            morphFactor: 'Morph Factor',
+            chaos: 'Chaos',
+            speed: 'Speed',
+            intensity: 'Intensity',
+            saturation: 'Saturation',
+            dimension: 'Dimension',
+            hue: 'Hue'
+        };
+        return labels[name] ?? name;
+    }
+
+    getModulatorTelemetryLabel(name) {
+        const labels = {
+            orbitalSweep: 'Orbital Sweep',
+            beatSurge: 'Beat Surge',
+            dimensionFlux: 'Dimension Flux',
+            momentumRise: 'Momentum Rise'
+        };
+        return labels[name] ?? name;
+    }
+
+    formatParameterTelemetryValue(name, value) {
+        if (!Number.isFinite(value)) {
+            return '--';
+        }
+
+        switch (name) {
+            case 'gridDensity':
+                return Math.round(value).toString();
+            case 'morphFactor':
+                return value.toFixed(2);
+            case 'chaos':
+            case 'intensity':
+            case 'saturation':
+                return `${Math.round(value * 100)}%`;
+            case 'speed':
+                return `${value.toFixed(2)}×`;
+            case 'dimension':
+                return value.toFixed(2);
+            case 'hue': {
+                const normalized = ((value % 360) + 360) % 360;
+                return `${Math.round(normalized)}°`;
+            }
+            default:
+                return value.toFixed(2);
+        }
+    }
+
+    formatModulatorTelemetryValue(name, value) {
+        if (!Number.isFinite(value)) {
+            return '--';
+        }
+        const formatted = value.toFixed(2);
+        return value > 0 ? `+${formatted}` : formatted;
     }
 
     initializeAutomationControls() {
@@ -831,18 +1120,24 @@ export class MusicVideoChoreographer {
     commitLiveVector(vector, options = {}) {
         const { fromPad = false, updatePad = false } = options;
         const safeVector = this.clampLiveVector(vector);
+        const current = this.reactivityController.getLiveVector();
+        const lockedVector = {
+            x: this.axisLocks?.x ? current.x : safeVector.x,
+            y: this.axisLocks?.y ? current.y : safeVector.y
+        };
 
-        this.reactivityController.setLiveVector(safeVector);
+        this.reactivityController.setLiveVector(lockedVector);
 
         if (updatePad && this.xyPad) {
             const engaged = typeof this.xyPad.isEngaged === 'function' ? this.xyPad.isEngaged() : false;
             if (!engaged || fromPad) {
-                this.xyPad.setValue(safeVector, true);
+                this.xyPad.setValue(lockedVector, true);
             }
         }
 
-        this.updateReactivityReadout(safeVector);
-        return safeVector;
+        this.updateReactivityReadout(lockedVector);
+        this.renderReactivityTelemetry();
+        return lockedVector;
     }
 
     normalizeAutomationPoints(points = []) {
@@ -1607,6 +1902,8 @@ export class MusicVideoChoreographer {
         });
 
         const payload = Object.fromEntries(entries);
+
+        this.renderReactivityTelemetry(this.lastReactiveParameters, this.reactivityController.getModulatorSnapshot());
 
         if (this.currentEngine.parameterManager && typeof this.currentEngine.parameterManager.setParameters === 'function') {
             this.currentEngine.parameterManager.setParameters(payload);

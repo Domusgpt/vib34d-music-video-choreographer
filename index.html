@@ -296,6 +296,82 @@
             color: #0ff;
         }
 
+        .axis-locks {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .axis-lock-btn,
+        .reset-pad-btn {
+            flex: 1 1 100px;
+            background: rgba(0, 255, 255, 0.12);
+            border: 1px solid rgba(0, 255, 255, 0.35);
+            color: #0ff;
+            font-size: 11px;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            padding: 8px 10px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .axis-lock-btn:hover,
+        .reset-pad-btn:hover {
+            background: rgba(0, 255, 255, 0.22);
+            box-shadow: 0 0 14px rgba(0, 255, 255, 0.35);
+        }
+
+        .axis-lock-btn.active {
+            background: linear-gradient(135deg, rgba(0, 255, 255, 0.85), rgba(0, 128, 255, 0.85));
+            color: #001018;
+            border-color: transparent;
+            box-shadow: 0 0 20px rgba(0, 255, 255, 0.7);
+        }
+
+        .reactivity-telemetry {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: 12px;
+            padding: 12px;
+            border: 1px solid rgba(0, 255, 255, 0.18);
+            border-radius: 10px;
+            background: rgba(0, 0, 0, 0.35);
+        }
+
+        .telemetry-section h5 {
+            font-size: 11px;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: #7fffd4;
+            margin-bottom: 6px;
+        }
+
+        .telemetry-list {
+            list-style: none;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .telemetry-item {
+            display: flex;
+            justify-content: space-between;
+            font-size: 11px;
+            font-variant-numeric: tabular-nums;
+            color: #9ff;
+        }
+
+        .telemetry-item .telemetry-label {
+            opacity: 0.7;
+        }
+
+        .telemetry-item .telemetry-value {
+            color: #fff;
+            font-weight: 700;
+        }
+
         .reactivity-buttons {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
@@ -613,6 +689,21 @@
                 <div class="reactivity-readout">
                     <span id="reactivity-readout-x">X: 0.00</span>
                     <span id="reactivity-readout-y">Y: 0.00</span>
+                </div>
+                <div class="axis-locks">
+                    <button id="lock-axis-x" class="axis-lock-btn" aria-pressed="false">🔒 Lock X Axis</button>
+                    <button id="lock-axis-y" class="axis-lock-btn" aria-pressed="false">🔒 Lock Y Axis</button>
+                    <button id="reset-reactivity-btn" class="reset-pad-btn">🎯 Center Pad</button>
+                </div>
+                <div class="reactivity-telemetry">
+                    <div class="telemetry-section">
+                        <h5>Parameter Output</h5>
+                        <ul id="reactivity-parameter-list" class="telemetry-list"></ul>
+                    </div>
+                    <div class="telemetry-section">
+                        <h5>Modulators</h5>
+                        <ul id="reactivity-modulator-list" class="telemetry-list"></ul>
+                    </div>
                 </div>
                 <div class="reactivity-buttons">
                     <button id="record-automation-btn">● Start Recording</button>
