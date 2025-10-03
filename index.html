@@ -120,7 +120,8 @@
             display: none;
             flex-direction: column;
             gap: 15px;
-            min-width: 600px;
+            min-width: 760px;
+            max-width: 900px;
         }
 
         #controls.active {
@@ -131,6 +132,11 @@
             display: flex;
             gap: 10px;
             align-items: center;
+        }
+
+        .control-row.reactivity-row {
+            align-items: stretch;
+            gap: 20px;
         }
 
         button {
@@ -159,6 +165,13 @@
         button:disabled {
             opacity: 0.5;
             cursor: not-allowed;
+        }
+
+        button.recording,
+        button.recording:hover {
+            background: linear-gradient(135deg, #7a0000, #ff3b3b);
+            color: #fff;
+            box-shadow: 0 0 20px #ff3b3b;
         }
 
         .file-input-label {
@@ -195,6 +208,364 @@
             border-radius: 4px;
             width: 0%;
             transition: width 0.1s linear;
+        }
+
+        .xy-pad {
+            position: relative;
+            width: 200px;
+            height: 200px;
+            border: 2px solid rgba(0, 255, 255, 0.6);
+            border-radius: 14px;
+            background: radial-gradient(circle at center, rgba(0, 255, 255, 0.08), rgba(0, 0, 0, 0.6));
+            box-shadow: inset 0 0 25px rgba(0, 255, 255, 0.2);
+            cursor: crosshair;
+        }
+
+        .xy-pad::before,
+        .xy-pad::after {
+            content: '';
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            transform: translate(-50%, -50%);
+            border-radius: 12px;
+        }
+
+        .xy-pad::before {
+            background:
+                linear-gradient(rgba(0, 255, 255, 0.15) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0, 255, 255, 0.15) 1px, transparent 1px);
+            background-size: 20px 20px;
+        }
+
+        .xy-pad::after {
+            border: 1px solid rgba(0, 255, 255, 0.3);
+        }
+
+        .xy-pad__handle {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            border: 2px solid #0ff;
+            background: radial-gradient(circle at center, #0ff, rgba(0, 0, 0, 0.1));
+            box-shadow: 0 0 20px rgba(0, 255, 255, 0.6);
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+        }
+
+        .xy-pad--ready {
+            outline: none;
+        }
+
+        .xy-pad--ready:focus {
+            box-shadow: 0 0 20px rgba(0, 255, 255, 0.6);
+        }
+
+        .reactivity-panel {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            background: rgba(0, 255, 255, 0.05);
+            border: 1px solid rgba(0, 255, 255, 0.2);
+            border-radius: 12px;
+            padding: 15px;
+        }
+
+        .reactivity-panel h4 {
+            font-size: 13px;
+            color: #0ff;
+        }
+
+        .reactivity-panel p {
+            font-size: 11px;
+            color: #8ad4ff;
+            line-height: 1.4;
+        }
+
+        .reactivity-readout {
+            display: flex;
+            gap: 15px;
+            font-size: 12px;
+            color: #0ff;
+        }
+
+        .axis-locks {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .axis-lock-btn,
+        .reset-pad-btn {
+            flex: 1 1 100px;
+            background: rgba(0, 255, 255, 0.12);
+            border: 1px solid rgba(0, 255, 255, 0.35);
+            color: #0ff;
+            font-size: 11px;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            padding: 8px 10px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .axis-lock-btn:hover,
+        .reset-pad-btn:hover {
+            background: rgba(0, 255, 255, 0.22);
+            box-shadow: 0 0 14px rgba(0, 255, 255, 0.35);
+        }
+
+        .axis-lock-btn.active {
+            background: linear-gradient(135deg, rgba(0, 255, 255, 0.85), rgba(0, 128, 255, 0.85));
+            color: #001018;
+            border-color: transparent;
+            box-shadow: 0 0 20px rgba(0, 255, 255, 0.7);
+        }
+
+        .reactivity-telemetry {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: 12px;
+            padding: 12px;
+            border: 1px solid rgba(0, 255, 255, 0.18);
+            border-radius: 10px;
+            background: rgba(0, 0, 0, 0.35);
+        }
+
+        .telemetry-section h5 {
+            font-size: 11px;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: #7fffd4;
+            margin-bottom: 6px;
+        }
+
+        .telemetry-list {
+            list-style: none;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .telemetry-item {
+            display: flex;
+            justify-content: space-between;
+            font-size: 11px;
+            font-variant-numeric: tabular-nums;
+            color: #9ff;
+        }
+
+        .telemetry-item .telemetry-label {
+            opacity: 0.7;
+        }
+
+        .telemetry-item .telemetry-value {
+            color: #fff;
+            font-weight: 700;
+        }
+
+        .telemetry-item.is-disabled .telemetry-value,
+        .telemetry-item.is-disabled .telemetry-label {
+            color: rgba(255, 255, 255, 0.45);
+        }
+
+        .modulator-controls {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            padding: 14px;
+            border-radius: 10px;
+            border: 1px solid rgba(0, 255, 255, 0.18);
+            background: rgba(0, 0, 0, 0.35);
+        }
+
+        .modulator-controls__header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+        }
+
+        .modulator-controls__header h5 {
+            margin: 0;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: #7fffd4;
+        }
+
+        .modulator-resync-btn {
+            font-size: 11px;
+            padding: 6px 12px;
+            border-radius: 6px;
+            background: linear-gradient(135deg, rgba(0, 128, 255, 0.85), rgba(0, 255, 255, 0.85));
+            color: #00131f;
+            border: none;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+        }
+
+        .modulator-control-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: 12px;
+        }
+
+        .modulator-card {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            padding: 12px;
+            border-radius: 10px;
+            border: 1px solid rgba(0, 255, 255, 0.16);
+            background: rgba(0, 0, 0, 0.45);
+            transition: border-color 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
+        }
+
+        .modulator-card--disabled {
+            opacity: 0.6;
+            border-color: rgba(255, 255, 255, 0.08);
+        }
+
+        .modulator-card__header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+        }
+
+        .modulator-card__title {
+            font-size: 12px;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: #0ff;
+        }
+
+        .modulator-card__toggle {
+            font-size: 11px;
+            padding: 6px 10px;
+            border-radius: 6px;
+            background: linear-gradient(135deg, rgba(0, 77, 104, 0.9), rgba(0, 255, 255, 0.9));
+            color: #001118;
+            border: none;
+            letter-spacing: 0.08em;
+            font-weight: 700;
+        }
+
+        .modulator-card--disabled .modulator-card__toggle {
+            background: linear-gradient(135deg, rgba(20, 20, 20, 0.9), rgba(70, 70, 70, 0.9));
+            color: #ccc;
+        }
+
+        .modulator-card__meta {
+            font-size: 11px;
+            color: rgba(255, 255, 255, 0.6);
+            letter-spacing: 0.06em;
+        }
+
+        .modulator-card__body {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .modulator-slider {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+        }
+
+        .modulator-slider__label {
+            color: rgba(255, 255, 255, 0.55);
+        }
+
+        .modulator-slider__input {
+            width: 100%;
+            accent-color: #0ff;
+        }
+
+        .modulator-slider__value {
+            text-align: right;
+            font-size: 12px;
+            font-weight: 600;
+            color: #fff;
+        }
+
+        .reactivity-buttons {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 10px;
+        }
+
+        .reactivity-buttons button {
+            width: 100%;
+        }
+
+        .automation-controls {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .automation-advanced {
+            display: grid;
+            grid-template-columns: auto 1fr 50px;
+            align-items: center;
+            gap: 10px;
+            font-size: 11px;
+            color: #8ad4ff;
+        }
+
+        .automation-advanced label {
+            font-weight: 700;
+            letter-spacing: 0.05em;
+        }
+
+        .automation-advanced input[type="range"] {
+            width: 100%;
+            accent-color: #0ff;
+        }
+
+        .automation-advanced span {
+            text-align: right;
+            font-size: 12px;
+            color: #0ff;
+        }
+
+        .automation-snapshot {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 10px;
+            align-items: center;
+        }
+
+        .automation-snapshot button {
+            width: 100%;
+        }
+
+        .automation-snapshot-info {
+            grid-column: 1 / -1;
+            font-size: 11px;
+            color: #8ad4ff;
+        }
+
+        button.automation-active,
+        button.automation-active:hover {
+            background: linear-gradient(135deg, #064d7a, #0ff);
+            box-shadow: 0 0 24px rgba(0, 255, 255, 0.6);
+            color: #00181f;
         }
 
         #status {
@@ -364,6 +735,24 @@
                 max-width: 90%;
             }
 
+            .control-row.reactivity-row {
+                flex-direction: column;
+            }
+
+            .xy-pad {
+                width: 100%;
+                height: 180px;
+            }
+
+            .modulator-control-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .modulator-resync-btn {
+                width: 100%;
+                text-align: center;
+            }
+
             #timeline-editor {
                 width: 90%;
                 left: 5%;
@@ -403,6 +792,8 @@
         <p id="mode-description">Real-time audio analysis with automatic parameter mapping</p>
         <p id="beat-info">BPM: -- | Beat: --</p>
         <p id="energy-info">Energy: -- | Bass: --</p>
+        <p id="spectral-info">Tilt: -- | Transient: --</p>
+        <p id="reactivity-info">Pad X: 0.00 | Y: 0.00</p>
     </div>
 
     <!-- Timeline Editor for Choreography Mode -->
@@ -428,6 +819,58 @@
 
         <div id="timeline">
             <div id="timeline-progress"></div>
+        </div>
+
+        <div class="control-row reactivity-row">
+            <div class="xy-pad" id="reactivity-pad" aria-label="Live reactivity XY pad"></div>
+            <div class="reactivity-panel">
+                <h4>Live Reactivity Pad</h4>
+                <p>Blend holographic intensity (X-axis) with chaos & dimensional depth (Y-axis). Perform live, capture automation, then replay or import precision curves on demand.</p>
+                <div class="reactivity-readout">
+                    <span id="reactivity-readout-x">X: 0.00</span>
+                    <span id="reactivity-readout-y">Y: 0.00</span>
+                </div>
+                <div class="axis-locks">
+                    <button id="lock-axis-x" class="axis-lock-btn" aria-pressed="false">🔒 Lock X Axis</button>
+                    <button id="lock-axis-y" class="axis-lock-btn" aria-pressed="false">🔒 Lock Y Axis</button>
+                    <button id="reset-reactivity-btn" class="reset-pad-btn">🎯 Center Pad</button>
+                </div>
+                <div class="reactivity-telemetry">
+                    <div class="telemetry-section">
+                        <h5>Parameter Output</h5>
+                        <ul id="reactivity-parameter-list" class="telemetry-list"></ul>
+                    </div>
+                    <div class="telemetry-section">
+                        <h5>Modulators</h5>
+                        <ul id="reactivity-modulator-list" class="telemetry-list"></ul>
+                    </div>
+                </div>
+                <div class="reactivity-buttons">
+                    <button id="record-automation-btn">● Start Recording</button>
+                    <button id="automation-playback-btn" disabled aria-pressed="false">▶ Automation Playback</button>
+                    <button id="export-automation-btn" disabled>⬇ Export Automation</button>
+                    <button id="import-automation-btn">⬆ Import Automation</button>
+                </div>
+                <div class="automation-controls">
+                    <div class="automation-advanced">
+                        <label for="automation-glide">Automation Glide</label>
+                        <input type="range" id="automation-glide" min="0" max="0.95" step="0.05" value="0.28">
+                        <span id="automation-glide-value">0.28</span>
+                    </div>
+                    <div class="automation-snapshot">
+                        <button id="save-automation-snapshot-btn" disabled>💾 Save Snapshot</button>
+                        <button id="load-automation-snapshot-btn" disabled>📂 Load Snapshot</button>
+                        <div class="automation-snapshot-info" id="automation-snapshot-info">No snapshot saved</div>
+                    </div>
+                </div>
+                <div class="modulator-controls">
+                    <div class="modulator-controls__header">
+                        <h5>Modulator Lab</h5>
+                        <button id="resync-modulators-btn" class="modulator-resync-btn">🔁 Resync to Beat</button>
+                    </div>
+                    <div id="modulator-control-grid" class="modulator-control-grid" aria-live="polite"></div>
+                </div>
+            </div>
         </div>
 
         <div class="system-selector">
