@@ -1,42 +1,111 @@
 /**
  * VIB34D Music Video Choreographer Engine
- * Dual-mode system: Reactive (built-in audio reactivity) + Choreographed (timeline-based)
+ * Hybrid live + timeline orchestrator with extended reactivity controls.
  */
 
 import { VIB34DIntegratedEngine } from './src/core/Engine.js';
 import { QuantumEngine } from './src/quantum/QuantumEngine.js';
 import { RealHolographicSystem } from './src/holograms/RealHolographicSystem.js';
+import { ReactivityController } from './src/core/ReactivityController.js';
+import { ReactiveXYPad } from './src/ui/ReactiveXYPad.js';
+import { StatusManager } from './src/ui/StatusManager.js';
+
+const GEOMETRY_VARIATIONS = 9;
+const RECORD_BUTTON_ACTIVE_CLASS = 'recording';
+const AUTOMATION_MODE_ACTIVE_CLASS = 'automation-active';
+const AUTOMATION_SNAPSHOT_STORAGE_KEY = 'vib34dAutomationSnapshotV1';
+const DEFAULT_AUTOMATION_GLIDE = 0.28;
 
 export class MusicVideoChoreographer {
     constructor(mode = 'reactive') {
-        this.mode = mode; // 'reactive' or 'choreographed'
+        this.mode = mode;
+
         this.audio = new Audio();
+        this.audio.crossOrigin = 'anonymous';
+
         this.audioContext = null;
         this.analyser = null;
         this.dataArray = null;
+        this.sourceNode = null;
+
         this.currentSystem = 'faceted';
         this.currentEngine = null;
         this.isPlaying = false;
         this.animationId = null;
 
-        // Beat detection
-        this.beatThreshold = 0.7;
-        this.lastBeatTime = 0;
-        this.beatInterval = 500;
-        this.detectedBPM = 0;
+        this.dom = {};
+        this.statusManager = new StatusManager();
 
-        // Choreography sequences (for choreographed mode)
+        this.reactivityController = new ReactivityController();
+        this.xyPad = null;
+        this.axisLocks = { x: false, y: false };
+        this.reactivityParameterOrder = [];
+        this.reactivityModulatorOrder = [];
+        this.reactivityTelemetry = {
+            parameterNodes: new Map(),
+            modulatorNodes: new Map(),
+            lastRenderedAt: 0,
+            initialized: false
+        };
+        this.modulatorUi = {
+            controls: new Map()
+        };
+
+        this.sceneState = {
+            scenes: [],
+            selectedSceneId: null,
+            crossfadeSeconds: 1.5,
+            transition: null,
+            captureCount: 0
+        };
+        this.sceneUi = {};
+
         this.sequences = [];
         this.currentSequence = null;
 
-        // Audio reactivity multipliers (for reactive mode)
-        this.reactivitySettings = {
-            bassToGridDensity: 30,
-            midToMorph: 0.5,
-            highToChaos: 0.6,
-            energyToIntensity: 0.5,
-            energyToSpeed: 0.5
+        this.previousAudio = { energy: 0, bass: 0, mid: 0, high: 0, lowMid: 0 };
+        this.smoothedEnergy = 0;
+        this.energyMomentum = 0;
+        this.lastAudioData = {
+            bass: 0,
+            lowMid: 0,
+            mid: 0,
+            high: 0,
+            energy: 0,
+            brightness: 0,
+            warmth: 0,
+            spectralTilt: 0,
+            transient: 0,
+            dynamics: 0,
+            momentum: 0
         };
+
+        this.detectedBPM = 0;
+        this.lastBeatTime = 0;
+        this.previousBeatTimestamp = 0;
+        this.minimumBeatInterval = 240;
+
+        this.lastFrameTime = performance.now();
+
+        this.geometryState = {
+            index: 0,
+            lastChange: 0
+        };
+
+        this.isRecordingAutomation = false;
+        this.automationData = [];
+        this.lastAutomationTimestamp = -1;
+        this.automationPlaybackData = [];
+        this.automationPlaybackIndex = 0;
+        this.automationPlaybackVector = { x: 0, y: 0 };
+        this.isAutomationPlaybackEnabled = false;
+        this.automationResumeTime = 0;
+        this.automationPlaybackMeta = null;
+        this.automationGlide = DEFAULT_AUTOMATION_GLIDE;
+        this.automationSnapshot = null;
+        this.lastReactiveParameters = {};
+        this.pendingSystemSwitch = null;
+        this.currentAudioObjectUrl = null;
 
         this.init();
     }
@@ -44,86 +113,2468 @@ export class MusicVideoChoreographer {
     async init() {
         console.log(`🎵 Initializing Music Video Choreographer in ${this.mode.toUpperCase()} mode`);
 
-        // Initialize audio context
-        this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
-        this.analyser = this.audioContext.createAnalyser();
-        this.analyser.fftSize = 2048;
-        this.dataArray = new Uint8Array(this.analyser.frequencyBinCount);
-
-        // Initialize default engine
-        await this.switchSystem('faceted');
-
-        // Setup event listeners
+        this.cacheDomReferences();
+        this.configureReactivitySystem();
+        this.initializeModulatorControls();
+        this.initializeSceneLab();
         this.setupEventListeners();
+        this.initializeAutomationControls();
+        this.setupReactivityPad();
+        this.updateAxisLockUi();
+        this.renderReactivityTelemetry();
+        this.updateAutomationUiState();
 
-        // Initialize mode-specific features
+        await this.initializeAudio();
+        await this.switchSystem(this.currentSystem);
+
         if (this.mode === 'choreographed') {
             await this.generateDefaultChoreography();
         }
 
+        this.updateStatus('Ready to load audio file', 'info');
         console.log('✅ Choreographer initialized');
     }
 
+    cacheDomReferences() {
+        this.dom = {
+            fileInput: document.getElementById('audio-file'),
+            playButton: document.getElementById('play-btn'),
+            pauseButton: document.getElementById('pause-btn'),
+            stopButton: document.getElementById('stop-btn'),
+            timeline: document.getElementById('timeline'),
+            timelineProgress: document.getElementById('timeline-progress'),
+            status: document.getElementById('status'),
+            systemButtons: Array.from(document.querySelectorAll('.system-btn')),
+            beatInfo: document.getElementById('beat-info'),
+            energyInfo: document.getElementById('energy-info'),
+            spectralInfo: document.getElementById('spectral-info'),
+            reactivityInfo: document.getElementById('reactivity-info'),
+            reactivityPad: document.getElementById('reactivity-pad'),
+            reactivityReadoutX: document.getElementById('reactivity-readout-x'),
+            reactivityReadoutY: document.getElementById('reactivity-readout-y'),
+            recordAutomationBtn: document.getElementById('record-automation-btn'),
+            exportAutomationBtn: document.getElementById('export-automation-btn'),
+            automationPlaybackBtn: document.getElementById('automation-playback-btn'),
+            importAutomationBtn: document.getElementById('import-automation-btn'),
+            automationGlideInput: document.getElementById('automation-glide'),
+            automationGlideValue: document.getElementById('automation-glide-value'),
+            saveAutomationSnapshotBtn: document.getElementById('save-automation-snapshot-btn'),
+            loadAutomationSnapshotBtn: document.getElementById('load-automation-snapshot-btn'),
+            automationSnapshotInfo: document.getElementById('automation-snapshot-info'),
+            reactivityParameterList: document.getElementById('reactivity-parameter-list'),
+            reactivityModulatorList: document.getElementById('reactivity-modulator-list'),
+            modulatorControlGrid: document.getElementById('modulator-control-grid'),
+            lockXAxisBtn: document.getElementById('lock-axis-x'),
+            lockYAxisBtn: document.getElementById('lock-axis-y'),
+            resetPadBtn: document.getElementById('reset-reactivity-btn'),
+            resyncModulatorsBtn: document.getElementById('resync-modulators-btn'),
+            sequenceList: document.getElementById('sequence-list'),
+            captureSceneBtn: document.getElementById('capture-scene-btn'),
+            applySceneBtn: document.getElementById('apply-scene-btn'),
+            sceneList: document.getElementById('scene-list'),
+            sceneCrossfadeInput: document.getElementById('scene-crossfade'),
+            sceneCrossfadeValue: document.getElementById('scene-crossfade-value')
+        };
+    }
+
+    configureReactivitySystem() {
+        this.reactivityParameterOrder = [
+            'gridDensity',
+            'morphFactor',
+            'chaos',
+            'speed',
+            'intensity',
+            'saturation',
+            'dimension',
+            'hue'
+        ];
+
+        this.reactivityModulatorOrder = [
+            'orbitalSweep',
+            'beatSurge',
+            'dimensionFlux',
+            'momentumRise',
+            'auroraRandom',
+            'pulseSequencer'
+        ];
+
+        this.reactivityTelemetry.initialized = false;
+        this.reactivityTelemetry.parameterNodes = new Map();
+        this.reactivityTelemetry.modulatorNodes = new Map();
+
+        this.reactivityController
+            .registerModulator('orbitalSweep', {
+                type: 'lfo',
+                frequency: 0.075,
+                amplitude: 0.45,
+                offset: 0,
+                phaseOffset: Math.PI / 6,
+                smoothing: 0.1,
+                range: [-1, 1],
+                beatBoost: 0.25,
+                beatBoostDecay: 0.6,
+                initialValue: 0
+            })
+            .registerModulator('beatSurge', {
+                type: 'beatEnvelope',
+                amount: 0.95,
+                decay: 0.58,
+                range: [0, 1.2],
+                smoothing: 0.1,
+                base: 0,
+                attack: 1.15
+            })
+            .registerModulator('dimensionFlux', {
+                type: 'lfo',
+                shape: 'triangle',
+                frequency: 0.045,
+                amplitude: 0.35,
+                offset: 0,
+                smoothing: 0.12,
+                range: [-1, 1],
+                phaseOffset: -Math.PI / 4
+            })
+            .registerModulator('auroraRandom', {
+                type: 'noise',
+                amplitude: 0.35,
+                offset: 0,
+                tempoSync: true,
+                division: 0.5,
+                noiseSmoothing: 0.82,
+                range: [-1, 1],
+                initialValue: 0
+            })
+            .registerModulator('pulseSequencer', {
+                type: 'stepSequencer',
+                steps: [0, 0.95, 0.35, 0.75],
+                amount: 1,
+                offset: 0,
+                tempoSync: true,
+                division: 2,
+                smoothing: 0.12,
+                retriggerOnBeat: true,
+                range: [0, 1]
+            })
+            .registerModulator('momentumRise', {
+                type: 'custom',
+                smoothing: 0.3,
+                range: [0, 1],
+                compute: ({ audio }) => Math.max(0, Math.min(1, audio.momentum ?? 0))
+            })
+            .registerParameter('gridDensity', {
+                base: 18,
+                sources: [
+                    { band: 'bass', weight: 28 },
+                    { band: 'lowMid', weight: 16 }
+                ],
+                liveAxes: { x: 22, y: 12 },
+                range: [8, 96],
+                smoothing: 0.22,
+                modulators: [
+                    { name: 'orbitalSweep', weight: 9 },
+                    { name: 'beatSurge', weight: 22 },
+                    { name: 'pulseSequencer', weight: 12 }
+                ],
+                transform: (value, meta) => {
+                    const densityBoost = meta.context?.sequence?.densityBoost ?? 0;
+                    return Math.round(value + densityBoost);
+                }
+            })
+            .registerParameter('morphFactor', {
+                base: 0.95,
+                sources: [
+                    { band: 'mid', weight: 0.9 },
+                    { band: 'high', weight: 0.7 }
+                ],
+                liveAxes: { x: 0.4, y: 0.3 },
+                range: [0.4, 1.9],
+                smoothing: 0.24,
+                modulators: [
+                    { name: 'orbitalSweep', weight: 0.25 },
+                    { name: 'dimensionFlux', weight: 0.35 }
+                ],
+                transform: (value, meta) => {
+                    if (meta.context?.sequence?.rotation === 'chaos') {
+                        value += 0.35;
+                    } else if (meta.context?.sequence?.rotation === 'extreme') {
+                        value += 0.5;
+                    }
+                    return value;
+                }
+            })
+            .registerParameter('chaos', {
+                base: 0.18,
+                sources: [
+                    { band: 'high', weight: 0.6 },
+                    { band: 'spectralTilt', weight: 0.5 }
+                ],
+                liveAxes: { y: 0.35 },
+                range: [0, 1],
+                smoothing: 0.28,
+                beatResponse: 0.18,
+                modulators: [
+                    { name: 'beatSurge', weight: 0.45 },
+                    { name: 'momentumRise', weight: 0.4 },
+                    { name: 'auroraRandom', weight: 0.25 }
+                ],
+                transform: (value, meta) => {
+                    const baseChaos = meta.context?.sequence?.chaos;
+                    if (typeof baseChaos === 'number') {
+                        value = baseChaos * 0.6 + value * 0.6;
+                    }
+                    return value;
+                }
+            })
+            .registerParameter('speed', {
+                base: 0.9,
+                sources: [
+                    { band: 'energy', weight: 1.4 },
+                    { band: 'momentum', weight: 1.1 }
+                ],
+                liveAxes: { x: 0.45 },
+                range: [0.25, 3],
+                smoothing: 0.18,
+                beatResponse: 0.25,
+                modulators: [
+                    { name: 'momentumRise', weight: 0.65 },
+                    { name: 'orbitalSweep', weight: 0.12, mode: 'multiply' }
+                ],
+                transform: (value, meta) => {
+                    const baseSpeed = meta.context?.sequence?.speed;
+                    if (typeof baseSpeed === 'number') {
+                        value = baseSpeed * 0.65 + value * 0.7;
+                    }
+                    return value;
+                }
+            })
+            .registerParameter('intensity', {
+                base: 0.42,
+                sources: [
+                    { band: 'energy', weight: 0.8 },
+                    { band: 'transient', weight: 0.6 }
+                ],
+                liveAxes: { x: 0.2 },
+                range: [0.2, 1],
+                smoothing: 0.15,
+                modulators: [
+                    { name: 'beatSurge', weight: 0.35 },
+                    { name: 'momentumRise', weight: 0.45 },
+                    { name: 'auroraRandom', weight: 0.2 }
+                ]
+            })
+            .registerParameter('saturation', {
+                base: 0.62,
+                sources: [
+                    { band: 'bass', weight: 0.45 },
+                    { band: 'warmth', weight: 0.3 }
+                ],
+                liveAxes: { y: 0.2 },
+                range: [0.2, 1],
+                smoothing: 0.2,
+                modulators: [
+                    { name: 'orbitalSweep', weight: 0.18 },
+                    { name: 'beatSurge', weight: 0.22 },
+                    { name: 'auroraRandom', weight: 0.18 }
+                ]
+            })
+            .registerParameter('dimension', {
+                base: 3.35,
+                sources: [
+                    { band: 'energy', weight: 0.4 }
+                ],
+                liveAxes: { y: 0.35 },
+                range: [3.1, 4.4],
+                smoothing: 0.3,
+                modulators: [
+                    { name: 'dimensionFlux', weight: 0.25 },
+                    { name: 'beatSurge', weight: 0.18 },
+                    { name: 'auroraRandom', weight: 0.15 }
+                ],
+                transform: (value, meta) => value + meta.audio.spectralTilt * 0.4
+            })
+            .registerParameter('rot4dXW', {
+                range: [-1.6, 1.6],
+                smoothing: 0.32,
+                compute: (meta) => {
+                    const t = meta.context?.time ?? 0;
+                    const seq = meta.context?.sequence;
+                    const baseFreq = seq?.rotation === 'extreme' ? 3.5 : seq?.rotation === 'chaos' ? 2.4 : 1.1;
+                    const amplitude = 0.7 + meta.audio.bass * 0.8;
+                    const orbital = meta.controller?.getModulatorValue('orbitalSweep') ?? 0;
+                    return Math.sin(t * baseFreq) * amplitude + meta.liveVector.y * 0.9 + orbital * 0.4;
+                }
+            })
+            .registerParameter('rot4dYW', {
+                range: [-1.6, 1.6],
+                smoothing: 0.32,
+                compute: (meta) => {
+                    const t = meta.context?.time ?? 0;
+                    const seq = meta.context?.sequence;
+                    const baseFreq = seq?.rotation === 'extreme' ? 2.9 : seq?.rotation === 'accelerate' ? 1.8 : 0.9;
+                    const amplitude = 0.6 + meta.audio.mid * 0.9;
+                    const flux = meta.controller?.getModulatorValue('dimensionFlux') ?? 0;
+                    return Math.cos(t * baseFreq) * amplitude + meta.liveVector.x * 0.6 + flux * 0.45;
+                }
+            })
+            .registerParameter('rot4dZW', {
+                range: [-1.6, 1.6],
+                smoothing: 0.28,
+                compute: (meta) => {
+                    const t = meta.context?.time ?? 0;
+                    const seq = meta.context?.sequence;
+                    const baseFreq = seq?.rotation === 'extreme' ? 4.1 : 1.6;
+                    const amplitude = 0.5 + meta.audio.high * 0.9;
+                    const surge = meta.controller?.getModulatorValue('beatSurge') ?? 0;
+                    return Math.sin(t * baseFreq + meta.audio.high * Math.PI) * amplitude + meta.liveVector.y * 0.4 + surge * 0.35;
+                }
+            })
+            .registerParameter('hue', {
+                wrap: 360,
+                smoothing: 0.12,
+                modulators: [
+                    { name: 'orbitalSweep', weight: 24 },
+                    { name: 'dimensionFlux', weight: 18 },
+                    { name: 'beatSurge', weight: 12 },
+                    { name: 'auroraRandom', weight: 16 },
+                    { name: 'pulseSequencer', weight: 9 }
+                ],
+                compute: (meta) => {
+                    const t = meta.context?.time ?? 0;
+                    const seq = meta.context?.sequence;
+                    let base = t * 18;
+                    if (seq) {
+                        if (seq.colorShift === 'rainbow') {
+                            base = t * 60;
+                        } else if (seq.colorShift === 'fast') {
+                            base = t * 30;
+                        } else if (seq.colorShift === 'medium') {
+                            base = t * 12;
+                        } else if (seq.colorShift === 'slow') {
+                            base = t * 6;
+                        } else if (seq.colorShift === 'freeze') {
+                            base = seq.baseHue ?? 180;
+                        }
+                    }
+                    const modulation = meta.audio.mid * 90 + meta.audio.high * 70;
+                    const live = meta.liveVector.x * 45 + meta.liveVector.y * 15;
+                    return base + modulation + live;
+                }
+            });
+    }
+
+    async initializeAudio() {
+        if (this.audioContext) return;
+
+        this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        this.analyser = this.audioContext.createAnalyser();
+        this.analyser.fftSize = 2048;
+        this.dataArray = new Uint8Array(this.analyser.frequencyBinCount);
+    }
+
     setupEventListeners() {
-        // File input
-        document.getElementById('audio-file').addEventListener('change', (e) => {
-            this.loadAudioFile(e.target.files[0]);
+        const {
+            fileInput,
+            playButton,
+            pauseButton,
+            stopButton,
+            timeline,
+            systemButtons,
+            recordAutomationBtn,
+            exportAutomationBtn,
+            automationPlaybackBtn,
+            importAutomationBtn,
+            automationGlideInput,
+            saveAutomationSnapshotBtn,
+            loadAutomationSnapshotBtn
+        } = this.dom;
+
+        if (fileInput) {
+            fileInput.addEventListener('change', (event) => {
+                const file = event.target.files?.[0];
+                this.loadAudioFile(file);
+            });
+        }
+
+        if (playButton) {
+            playButton.addEventListener('click', () => this.play());
+        }
+        if (pauseButton) {
+            pauseButton.addEventListener('click', () => this.pause());
+        }
+        if (stopButton) {
+            stopButton.addEventListener('click', () => this.stop());
+        }
+
+        if (timeline) {
+            timeline.addEventListener('click', (event) => {
+                if (!this.audio.duration) return;
+                const rect = timeline.getBoundingClientRect();
+                const pos = (event.clientX - rect.left) / rect.width;
+                this.audio.currentTime = pos * this.audio.duration;
+                this.updateTimeline();
+            });
+        }
+
+        if (systemButtons && systemButtons.length) {
+            systemButtons.forEach((btn) => {
+                btn.addEventListener('click', () => {
+                    const system = btn.dataset.system;
+                    if (system && system !== this.currentSystem) {
+                        this.switchSystem(system);
+                    }
+                });
+            });
+        }
+
+        if (recordAutomationBtn) {
+            recordAutomationBtn.addEventListener('click', () => this.toggleAutomationRecording());
+        }
+
+        if (exportAutomationBtn) {
+            exportAutomationBtn.addEventListener('click', () => this.exportAutomationData());
+        }
+
+        if (automationPlaybackBtn) {
+            automationPlaybackBtn.addEventListener('click', () => this.toggleAutomationPlayback());
+        }
+
+        if (importAutomationBtn) {
+            importAutomationBtn.addEventListener('click', () => this.promptAutomationImport());
+        }
+
+        if (this.dom.lockXAxisBtn) {
+            this.dom.lockXAxisBtn.addEventListener('click', () => this.toggleAxisLock('x'));
+        }
+
+        if (this.dom.lockYAxisBtn) {
+            this.dom.lockYAxisBtn.addEventListener('click', () => this.toggleAxisLock('y'));
+        }
+
+        if (this.dom.resetPadBtn) {
+            this.dom.resetPadBtn.addEventListener('click', () => this.resetLiveVector());
+        }
+
+        if (this.dom.resyncModulatorsBtn) {
+            this.dom.resyncModulatorsBtn.addEventListener('click', () => this.handleResyncModulators());
+        }
+
+        if (automationGlideInput) {
+            automationGlideInput.addEventListener('input', (event) => {
+                const value = Number.isFinite(event.target.valueAsNumber)
+                    ? event.target.valueAsNumber
+                    : parseFloat(event.target.value);
+                this.setAutomationGlide(value, { updateSlider: false, announce: true });
+            });
+        }
+
+        if (saveAutomationSnapshotBtn) {
+            saveAutomationSnapshotBtn.addEventListener('click', () => this.handleSaveAutomationSnapshot());
+        }
+
+        if (loadAutomationSnapshotBtn) {
+            loadAutomationSnapshotBtn.addEventListener('click', () => this.handleLoadAutomationSnapshot());
+        }
+
+        this.audio.addEventListener('ended', () => this.stop());
+        this.audio.addEventListener('timeupdate', () => this.updateTimeline());
+    }
+
+    setupReactivityPad() {
+        const padElement = this.dom.reactivityPad;
+        if (!padElement) return;
+
+        this.xyPad = new ReactiveXYPad(padElement, {
+            snap: 0.02,
+            onEngage: () => {
+                this.suspendAutomationPlayback();
+                this.recordAutomationPoint(this.reactivityController.getLiveVector());
+            },
+            onChange: (vector) => {
+                const safeVector = this.commitLiveVector(vector, { fromPad: true });
+                this.recordAutomationPoint(safeVector);
+                this.applyLiveVector();
+            },
+            onRelease: (vector) => {
+                this.suspendAutomationPlayback(600);
+                const safeVector = this.commitLiveVector(vector, { fromPad: true });
+                this.recordAutomationPoint(safeVector);
+                this.applyLiveVector();
+            },
+            onActivity: () => this.suspendAutomationPlayback()
         });
 
-        // Playback controls
-        document.getElementById('play-btn').addEventListener('click', () => this.play());
-        document.getElementById('pause-btn').addEventListener('click', () => this.pause());
-        document.getElementById('stop-btn').addEventListener('click', () => this.stop());
+        const initialVector = this.reactivityController.getLiveVector();
+        this.xyPad.setValue(initialVector, true);
+        this.updateReactivityReadout(initialVector);
+    }
 
-        // Timeline seeking
-        document.getElementById('timeline').addEventListener('click', (e) => {
-            const rect = e.target.getBoundingClientRect();
-            const pos = (e.clientX - rect.left) / rect.width;
-            this.audio.currentTime = pos * this.audio.duration;
+    toggleAxisLock(axis) {
+        if (!axis || (axis !== 'x' && axis !== 'y')) return;
+        this.axisLocks[axis] = !this.axisLocks[axis];
+        this.updateAxisLockUi();
+        this.commitLiveVector(this.reactivityController.getLiveVector(), { updatePad: true });
+        this.applyLiveVector();
+        const label = axis.toUpperCase();
+        const state = this.axisLocks[axis] ? 'locked' : 'unlocked';
+        this.updateStatus(`${label} axis ${state}`, 'info');
+    }
+
+    updateAxisLockUi() {
+        if (!this.axisLocks) {
+            this.axisLocks = { x: false, y: false };
+        }
+
+        if (this.dom.lockXAxisBtn) {
+            const locked = Boolean(this.axisLocks.x);
+            this.dom.lockXAxisBtn.classList.toggle('active', locked);
+            this.dom.lockXAxisBtn.setAttribute('aria-pressed', locked ? 'true' : 'false');
+            this.dom.lockXAxisBtn.textContent = locked ? '🔓 Unlock X Axis' : '🔒 Lock X Axis';
+        }
+
+        if (this.dom.lockYAxisBtn) {
+            const locked = Boolean(this.axisLocks.y);
+            this.dom.lockYAxisBtn.classList.toggle('active', locked);
+            this.dom.lockYAxisBtn.setAttribute('aria-pressed', locked ? 'true' : 'false');
+            this.dom.lockYAxisBtn.textContent = locked ? '🔓 Unlock Y Axis' : '🔒 Lock Y Axis';
+        }
+    }
+
+    resetLiveVector(announce = true) {
+        const vector = this.commitLiveVector({ x: 0, y: 0 }, { updatePad: true });
+        this.applyLiveVector();
+        if (announce) {
+            this.updateStatus('Reactivity pad centered', 'info');
+        }
+        return vector;
+    }
+
+    initializeTelemetryLists() {
+        if (this.reactivityTelemetry.initialized) return;
+
+        const { reactivityParameterList, reactivityModulatorList } = this.dom;
+
+        if (reactivityParameterList && Array.isArray(this.reactivityParameterOrder)) {
+            reactivityParameterList.innerHTML = '';
+            this.reactivityTelemetry.parameterNodes = new Map();
+            this.reactivityParameterOrder.forEach((name) => {
+                const item = document.createElement('li');
+                item.className = 'telemetry-item';
+                const label = document.createElement('span');
+                label.className = 'telemetry-label';
+                label.textContent = this.getParameterTelemetryLabel(name);
+                const value = document.createElement('span');
+                value.className = 'telemetry-value';
+                value.textContent = '--';
+                item.appendChild(label);
+                item.appendChild(value);
+                reactivityParameterList.appendChild(item);
+                this.reactivityTelemetry.parameterNodes.set(name, value);
+            });
+        }
+
+        if (reactivityModulatorList && Array.isArray(this.reactivityModulatorOrder)) {
+            reactivityModulatorList.innerHTML = '';
+            this.reactivityTelemetry.modulatorNodes = new Map();
+            this.reactivityModulatorOrder.forEach((name) => {
+                const item = document.createElement('li');
+                item.className = 'telemetry-item';
+                const label = document.createElement('span');
+                label.className = 'telemetry-label';
+                label.textContent = this.getModulatorTelemetryLabel(name);
+                const value = document.createElement('span');
+                value.className = 'telemetry-value';
+                value.textContent = '--';
+                item.appendChild(label);
+                item.appendChild(value);
+                reactivityModulatorList.appendChild(item);
+                this.reactivityTelemetry.modulatorNodes.set(name, value);
+            });
+        }
+
+        this.reactivityTelemetry.initialized = true;
+    }
+
+    renderReactivityTelemetry(params = this.lastReactiveParameters, modulators = this.reactivityController.getModulatorSnapshot()) {
+        if (!this.dom.reactivityParameterList && !this.dom.reactivityModulatorList) {
+            return;
+        }
+
+        this.initializeTelemetryLists();
+
+        const now = this.getNow();
+        if (now - (this.reactivityTelemetry.lastRenderedAt || 0) < 80) {
+            return;
+        }
+        this.reactivityTelemetry.lastRenderedAt = now;
+
+        const parameterValues = params || this.lastReactiveParameters || {};
+        this.reactivityTelemetry.parameterNodes.forEach((node, name) => {
+            const value = parameterValues[name];
+            node.textContent = this.formatParameterTelemetryValue(name, value);
         });
 
-        // System switching
-        document.querySelectorAll('.system-btn').forEach(btn => {
-            btn.addEventListener('click', () => {
-                this.switchSystem(btn.dataset.system);
+        const modValues = modulators || this.reactivityController.getModulatorSnapshot() || {};
+        this.reactivityTelemetry.modulatorNodes.forEach((node, name) => {
+            const value = modValues[name];
+            const enabled = this.reactivityController.isModulatorEnabled(name);
+            node.textContent = enabled ? this.formatModulatorTelemetryValue(name, value) : 'OFF';
+            const container = node.closest('.telemetry-item');
+            if (container) {
+                container.classList.toggle('is-disabled', !enabled);
+            }
+        });
+    }
+
+    getParameterTelemetryLabel(name) {
+        const labels = {
+            gridDensity: 'Grid Density',
+            morphFactor: 'Morph Factor',
+            chaos: 'Chaos',
+            speed: 'Speed',
+            intensity: 'Intensity',
+            saturation: 'Saturation',
+            dimension: 'Dimension',
+            hue: 'Hue'
+        };
+        return labels[name] ?? name;
+    }
+
+    getModulatorTelemetryLabel(name) {
+        const labels = {
+            orbitalSweep: 'Orbital Sweep',
+            beatSurge: 'Beat Surge',
+            dimensionFlux: 'Dimension Flux',
+            momentumRise: 'Momentum Rise',
+            auroraRandom: 'Aurora Randomizer',
+            pulseSequencer: 'Pulse Sequencer'
+        };
+        return labels[name] ?? name;
+    }
+
+    formatParameterTelemetryValue(name, value) {
+        if (!Number.isFinite(value)) {
+            return '--';
+        }
+
+        switch (name) {
+            case 'gridDensity':
+                return Math.round(value).toString();
+            case 'morphFactor':
+                return value.toFixed(2);
+            case 'chaos':
+            case 'intensity':
+            case 'saturation':
+                return `${Math.round(value * 100)}%`;
+            case 'speed':
+                return `${value.toFixed(2)}×`;
+            case 'dimension':
+                return value.toFixed(2);
+            case 'hue': {
+                const normalized = ((value % 360) + 360) % 360;
+                return `${Math.round(normalized)}°`;
+            }
+            default:
+                return value.toFixed(2);
+        }
+    }
+
+    formatModulatorTelemetryValue(name, value) {
+        if (!Number.isFinite(value)) {
+            return '--';
+        }
+        const formatted = value.toFixed(2);
+        return value > 0 ? `+${formatted}` : formatted;
+    }
+
+    initializeModulatorControls() {
+        const container = this.dom.modulatorControlGrid;
+        if (!container || !this.reactivityController) {
+            return;
+        }
+
+        container.innerHTML = '';
+        this.modulatorUi.controls = new Map();
+
+        const definitions = this.reactivityController.getModulatorDefinitions();
+        if (!definitions.length) {
+            return;
+        }
+
+        const map = new Map(definitions.map((def) => [def.name, def]));
+        const orderedNames = (this.reactivityModulatorOrder || []).filter((name) => map.has(name));
+        const names = orderedNames.length ? orderedNames : Array.from(map.keys());
+
+        names.forEach((name) => {
+            const config = map.get(name);
+            if (!config) return;
+
+            const card = document.createElement('div');
+            card.className = 'modulator-card';
+            card.dataset.modulator = name;
+
+            const header = document.createElement('div');
+            header.className = 'modulator-card__header';
+
+            const title = document.createElement('span');
+            title.className = 'modulator-card__title';
+            title.textContent = this.getModulatorTelemetryLabel(name);
+            header.appendChild(title);
+
+            const toggle = document.createElement('button');
+            toggle.type = 'button';
+            toggle.className = 'modulator-card__toggle';
+            toggle.addEventListener('click', () => this.handleModulatorToggle(name));
+            header.appendChild(toggle);
+
+            card.appendChild(header);
+
+            const meta = document.createElement('div');
+            meta.className = 'modulator-card__meta';
+            card.appendChild(meta);
+
+            const body = document.createElement('div');
+            body.className = 'modulator-card__body';
+            card.appendChild(body);
+
+            const controlEntry = {
+                card,
+                toggle,
+                meta
+            };
+
+            const addSlider = (key, options) => {
+                const slider = this.createModulatorSlider(body, options);
+                if (slider) {
+                    controlEntry[key] = slider;
+                }
+            };
+
+            if (typeof config.amplitude === 'number' && (config.type === 'lfo' || config.type === 'noise')) {
+                addSlider('amplitude', {
+                    label: 'Amplitude',
+                    min: 0,
+                    max: 1.5,
+                    step: 0.05,
+                    value: Number.isFinite(config.amplitude) ? config.amplitude : 0,
+                    onChange: (val) => {
+                        this.reactivityController.updateModulatorConfig(name, { amplitude: val });
+                        this.renderReactivityTelemetry();
+                        this.updateModulatorControlState(name);
+                    },
+                    onCommit: (val) => {
+                        this.updateStatus(`${this.getModulatorTelemetryLabel(name)} amplitude ${val.toFixed(2)}`, 'info');
+                    }
+                });
+            }
+
+            if (config.type === 'lfo' && !config.tempoSync) {
+                addSlider('frequency', {
+                    label: 'Frequency (Hz)',
+                    min: 0,
+                    max: 2,
+                    step: 0.01,
+                    value: Number.isFinite(config.frequency) ? config.frequency : 0,
+                    format: (val) => `${val.toFixed(2)} Hz`,
+                    onChange: (val) => {
+                        this.reactivityController.updateModulatorConfig(name, { frequency: val });
+                        this.updateModulatorControlState(name);
+                    },
+                    onCommit: (val) => {
+                        this.updateStatus(`${this.getModulatorTelemetryLabel(name)} frequency ${val.toFixed(2)} Hz`, 'info');
+                    }
+                });
+            }
+
+            if (config.tempoSync) {
+                addSlider('division', {
+                    label: 'Tempo Multiplier',
+                    min: 0.25,
+                    max: 4,
+                    step: 0.25,
+                    value: Number.isFinite(config.division) ? config.division : 1,
+                    format: (val) => `×${val.toFixed(2)}`,
+                    onChange: (val) => {
+                        this.reactivityController.updateModulatorConfig(name, { division: val });
+                        this.updateModulatorControlState(name);
+                    },
+                    onCommit: (val) => {
+                        this.updateStatus(`${this.getModulatorTelemetryLabel(name)} tempo ×${val.toFixed(2)}`, 'info');
+                    }
+                });
+            }
+
+            if (config.type === 'beatEnvelope') {
+                addSlider('amount', {
+                    label: 'Amount',
+                    min: 0,
+                    max: 1.5,
+                    step: 0.05,
+                    value: Number.isFinite(config.amount) ? config.amount : 1,
+                    onChange: (val) => {
+                        this.reactivityController.updateModulatorConfig(name, { amount: val });
+                        this.renderReactivityTelemetry();
+                        this.updateModulatorControlState(name);
+                    },
+                    onCommit: (val) => {
+                        this.updateStatus(`${this.getModulatorTelemetryLabel(name)} amount ${val.toFixed(2)}`, 'info');
+                    }
+                });
+
+                addSlider('decay', {
+                    label: 'Decay',
+                    min: 0.2,
+                    max: 0.95,
+                    step: 0.01,
+                    value: Number.isFinite(config.decay) ? config.decay : 0.6,
+                    onChange: (val) => {
+                        this.reactivityController.updateModulatorConfig(name, { decay: val });
+                        this.updateModulatorControlState(name);
+                    },
+                    onCommit: (val) => {
+                        this.updateStatus(`${this.getModulatorTelemetryLabel(name)} decay ${val.toFixed(2)}`, 'info');
+                    }
+                });
+            }
+
+            if (config.type === 'noise') {
+                addSlider('noiseSmoothing', {
+                    label: 'Drift Smoothness',
+                    min: 0.4,
+                    max: 0.95,
+                    step: 0.01,
+                    value: Number.isFinite(config.noiseSmoothing) ? config.noiseSmoothing : 0.7,
+                    onChange: (val) => {
+                        this.reactivityController.updateModulatorConfig(name, { noiseSmoothing: val });
+                        this.updateModulatorControlState(name);
+                    },
+                    onCommit: (val) => {
+                        this.updateStatus(`${this.getModulatorTelemetryLabel(name)} smoothness ${val.toFixed(2)}`, 'info');
+                    }
+                });
+            }
+
+            if (config.type === 'stepSequencer') {
+                addSlider('amount', {
+                    label: 'Step Amount',
+                    min: 0,
+                    max: 1.5,
+                    step: 0.05,
+                    value: Number.isFinite(config.amount) ? config.amount : 1,
+                    onChange: (val) => {
+                        this.reactivityController.updateModulatorConfig(name, { amount: val });
+                        this.renderReactivityTelemetry();
+                        this.updateModulatorControlState(name);
+                    },
+                    onCommit: (val) => {
+                        this.updateStatus(`${this.getModulatorTelemetryLabel(name)} amount ${val.toFixed(2)}`, 'info');
+                    }
+                });
+            }
+
+            if (config.type === 'custom' && Number.isFinite(config.smoothing)) {
+                addSlider('smoothing', {
+                    label: 'Smoothing',
+                    min: 0,
+                    max: 0.9,
+                    step: 0.05,
+                    value: config.smoothing,
+                    onChange: (val) => {
+                        this.reactivityController.updateModulatorConfig(name, { smoothing: val });
+                        this.updateModulatorControlState(name);
+                    },
+                    onCommit: (val) => {
+                        this.updateStatus(`${this.getModulatorTelemetryLabel(name)} smoothing ${val.toFixed(2)}`, 'info');
+                    }
+                });
+            }
+
+            container.appendChild(card);
+            this.modulatorUi.controls.set(name, controlEntry);
+        });
+
+        this.refreshAllModulatorControlStates();
+    }
+
+    createModulatorSlider(container, options = {}) {
+        if (!container) return null;
+        const {
+            label = 'Control',
+            min = 0,
+            max = 1,
+            step = 0.01,
+            value = 0,
+            format,
+            onChange,
+            onCommit
+        } = options;
+
+        const formatter = typeof format === 'function' ? format : (val) => val.toFixed(2);
+
+        const wrapper = document.createElement('label');
+        wrapper.className = 'modulator-slider';
+
+        const title = document.createElement('span');
+        title.className = 'modulator-slider__label';
+        title.textContent = label;
+        wrapper.appendChild(title);
+
+        const slider = document.createElement('input');
+        slider.type = 'range';
+        slider.className = 'modulator-slider__input';
+        slider.min = `${min}`;
+        slider.max = `${max}`;
+        slider.step = `${step}`;
+        slider.value = `${Number.isFinite(value) ? value : 0}`;
+        slider.setAttribute('aria-label', label);
+
+        const readout = document.createElement('span');
+        readout.className = 'modulator-slider__value';
+        readout.textContent = formatter(Number.isFinite(value) ? value : 0);
+
+        slider.addEventListener('input', (event) => {
+            const numeric = Number.isFinite(event.target.valueAsNumber)
+                ? event.target.valueAsNumber
+                : parseFloat(event.target.value);
+            readout.textContent = formatter(numeric);
+            if (typeof onChange === 'function') {
+                onChange(numeric);
+            }
+        });
+
+        if (typeof onCommit === 'function') {
+            slider.addEventListener('change', (event) => {
+                const numeric = Number.isFinite(event.target.valueAsNumber)
+                    ? event.target.valueAsNumber
+                    : parseFloat(event.target.value);
+                onCommit(numeric);
+            });
+        }
+
+        wrapper.appendChild(slider);
+        wrapper.appendChild(readout);
+        container.appendChild(wrapper);
+
+        return {
+            wrapper,
+            input: slider,
+            readout,
+            formatter
+        };
+    }
+
+    handleModulatorToggle(name) {
+        if (!name) return;
+        const enabled = this.reactivityController.isModulatorEnabled(name);
+        this.reactivityController.setModulatorEnabled(name, !enabled);
+        const label = this.getModulatorTelemetryLabel(name);
+        this.updateStatus(`${label} ${enabled ? 'disabled' : 'enabled'}`, enabled ? 'warning' : 'success');
+        this.updateModulatorControlState(name);
+        this.renderReactivityTelemetry();
+    }
+
+    updateModulatorControlState(name) {
+        const control = this.modulatorUi.controls.get(name);
+        const config = this.reactivityController.getModulatorDefinition(name);
+        if (!control || !config) {
+            return;
+        }
+
+        const enabled = this.reactivityController.isModulatorEnabled(name);
+        control.card.classList.toggle('modulator-card--disabled', !enabled);
+        control.toggle.setAttribute('aria-pressed', String(enabled));
+        control.toggle.textContent = enabled ? 'Disable' : 'Enable';
+        control.toggle.dataset.state = enabled ? 'on' : 'off';
+        control.toggle.title = enabled ? 'Disable modulator' : 'Enable modulator';
+
+        if (control.meta) {
+            control.meta.textContent = this.describeModulator(config);
+        }
+
+        const updateSlider = (entry, value) => {
+            if (!entry) return;
+            const numeric = Number.isFinite(value) ? value : 0;
+            entry.input.value = `${numeric}`;
+            entry.input.disabled = !enabled;
+            const formatFn = entry.formatter || ((val) => val.toFixed(2));
+            entry.readout.textContent = formatFn(numeric);
+        };
+
+        updateSlider(control.amplitude, config.amplitude);
+        updateSlider(control.frequency, config.frequency);
+        updateSlider(control.division, config.division);
+        updateSlider(control.amount, config.amount);
+        updateSlider(control.decay, config.decay);
+        updateSlider(control.noiseSmoothing, config.noiseSmoothing);
+        updateSlider(control.smoothing, config.smoothing);
+    }
+
+    refreshAllModulatorControlStates() {
+        if (!this.modulatorUi || !this.modulatorUi.controls) {
+            return;
+        }
+        this.modulatorUi.controls.forEach((_, name) => this.updateModulatorControlState(name));
+    }
+
+    describeModulator(config) {
+        if (!config) return '';
+        if (config.tempoSync) {
+            const tempo = this.reactivityController.getGlobalTempo();
+            const division = Number.isFinite(config.division) ? config.division : 1;
+            return `Tempo sync ×${division.toFixed(2)} @ ${Math.round(tempo)} BPM`;
+        }
+        if (config.type === 'beatEnvelope') {
+            return 'Triggers on beat transients';
+        }
+        if (config.type === 'noise') {
+            return 'Organic drift generator';
+        }
+        if (config.type === 'stepSequencer') {
+            return 'Quantised pulse pattern';
+        }
+        return 'Free-run modulator';
+    }
+
+    initializeSceneLab() {
+        this.sceneUi = {
+            list: this.dom.sceneList,
+            captureBtn: this.dom.captureSceneBtn,
+            applyBtn: this.dom.applySceneBtn,
+            crossfadeInput: this.dom.sceneCrossfadeInput,
+            crossfadeValue: this.dom.sceneCrossfadeValue
+        };
+
+        if (this.sceneUi.captureBtn) {
+            this.sceneUi.captureBtn.addEventListener('click', () => this.captureCurrentScene());
+        }
+
+        if (this.sceneUi.applyBtn) {
+            this.sceneUi.applyBtn.addEventListener('click', () => this.launchSelectedScene());
+        }
+
+        if (this.sceneUi.crossfadeInput) {
+            const initial = Number(this.sceneUi.crossfadeInput.value);
+            if (Number.isFinite(initial)) {
+                this.sceneState.crossfadeSeconds = Math.max(0, initial);
+            }
+
+            this.sceneUi.crossfadeInput.addEventListener('input', (event) => {
+                const value = Number(event.target.value);
+                if (Number.isFinite(value)) {
+                    this.sceneState.crossfadeSeconds = Math.max(0, value);
+                    this.updateSceneCrossfadeDisplay();
+                }
+            });
+            this.updateSceneCrossfadeDisplay();
+        }
+
+        if (this.sceneUi.list) {
+            this.sceneUi.list.addEventListener('click', (event) => this.handleSceneListClick(event));
+            this.sceneUi.list.addEventListener('keydown', (event) => this.handleSceneListKeyDown(event));
+        }
+
+        this.renderSceneList();
+        this.updateSceneUiState();
+    }
+
+    updateSceneCrossfadeDisplay() {
+        if (!this.sceneUi.crossfadeValue) return;
+        const seconds = Number.isFinite(this.sceneState.crossfadeSeconds)
+            ? this.sceneState.crossfadeSeconds
+            : 0;
+        this.sceneUi.crossfadeValue.textContent = `${seconds.toFixed(1)}s`;
+    }
+
+    handleSceneListClick(event) {
+        const card = event.target.closest('.scene-card');
+        if (!card || !this.sceneUi.list || !this.sceneUi.list.contains(card)) {
+            return;
+        }
+
+        const sceneId = card.dataset.sceneId;
+        if (!sceneId) return;
+
+        const actionButton = event.target.closest('[data-scene-action]');
+        if (actionButton) {
+            const action = actionButton.dataset.sceneAction;
+            this.handleSceneAction(action, sceneId);
+            event.stopPropagation();
+            return;
+        }
+
+        this.selectScene(sceneId, { announce: true });
+    }
+
+    handleSceneListKeyDown(event) {
+        if (event.defaultPrevented) return;
+        const card = event.target.closest('.scene-card');
+        if (!card || !this.sceneUi.list || !this.sceneUi.list.contains(card)) {
+            return;
+        }
+
+        const sceneId = card.dataset.sceneId;
+        if (!sceneId) return;
+
+        if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            this.selectScene(sceneId, { announce: true });
+        }
+    }
+
+    handleSceneAction(action, sceneId) {
+        if (!action) return;
+        const scene = this.getSceneById(sceneId);
+        if (!scene) {
+            this.updateStatus('Scene not found', 'warning');
+            return;
+        }
+
+        switch (action) {
+            case 'activate':
+                this.beginSceneTransition(scene);
+                break;
+            case 'rename': {
+                const nextName = typeof window !== 'undefined'
+                    ? window.prompt('Rename scene', scene.name)
+                    : null;
+                const trimmed = nextName?.trim();
+                if (trimmed) {
+                    scene.name = trimmed;
+                    this.renderSceneList();
+                    this.updateStatus(`Scene renamed to ${trimmed}`, 'info');
+                }
+                break;
+            }
+            case 'duplicate': {
+                const clone = this.cloneScene(scene);
+                if (clone) {
+                    this.sceneState.scenes.splice(
+                        this.sceneState.scenes.findIndex((entry) => entry.id === scene.id) + 1,
+                        0,
+                        clone
+                    );
+                    this.sceneState.selectedSceneId = clone.id;
+                    this.renderSceneList();
+                    this.updateSceneUiState();
+                    this.updateStatus(`Duplicated ${scene.name}`, 'success');
+                }
+                break;
+            }
+            case 'delete': {
+                const index = this.sceneState.scenes.findIndex((entry) => entry.id === scene.id);
+                if (index >= 0) {
+                    this.sceneState.scenes.splice(index, 1);
+                    if (this.sceneState.selectedSceneId === scene.id) {
+                        this.sceneState.selectedSceneId = this.sceneState.scenes[index]?.id || null;
+                    }
+                    this.renderSceneList();
+                    this.updateSceneUiState();
+                    this.updateStatus(`Deleted ${scene.name}`, 'warning');
+                }
+                break;
+            }
+            case 'move-up': {
+                const index = this.sceneState.scenes.findIndex((entry) => entry.id === scene.id);
+                if (index > 0) {
+                    const [removed] = this.sceneState.scenes.splice(index, 1);
+                    this.sceneState.scenes.splice(index - 1, 0, removed);
+                    this.renderSceneList();
+                }
+                break;
+            }
+            case 'move-down': {
+                const index = this.sceneState.scenes.findIndex((entry) => entry.id === scene.id);
+                if (index >= 0 && index < this.sceneState.scenes.length - 1) {
+                    const [removed] = this.sceneState.scenes.splice(index, 1);
+                    this.sceneState.scenes.splice(index + 1, 0, removed);
+                    this.renderSceneList();
+                }
+                break;
+            }
+            default:
+                break;
+        }
+
+        this.updateSceneUiState();
+    }
+
+    renderSceneList() {
+        const container = this.sceneUi.list;
+        if (!container) return;
+
+        container.innerHTML = '';
+        const scenes = this.sceneState.scenes || [];
+
+        if (!scenes.length) {
+            const empty = document.createElement('div');
+            empty.className = 'scene-lab__empty';
+            empty.textContent = 'Capture the current modulation blend to build a scene set.';
+            container.appendChild(empty);
+            return;
+        }
+
+        scenes.forEach((scene, index) => {
+            const card = document.createElement('div');
+            card.className = 'scene-card';
+            card.dataset.sceneId = scene.id;
+            card.setAttribute('role', 'button');
+            card.setAttribute('tabindex', '0');
+            if (scene.id === this.sceneState.selectedSceneId) {
+                card.classList.add('scene-card--selected');
+                card.setAttribute('aria-selected', 'true');
+            } else {
+                card.setAttribute('aria-selected', 'false');
+            }
+
+            const header = document.createElement('div');
+            header.className = 'scene-card__header';
+
+            const title = document.createElement('span');
+            title.className = 'scene-card__title';
+            title.textContent = scene.name;
+            header.appendChild(title);
+
+            const timestamp = document.createElement('span');
+            timestamp.className = 'scene-card__timestamp';
+            timestamp.textContent = this.describeSceneTimestamp(scene.createdAt);
+            header.appendChild(timestamp);
+
+            card.appendChild(header);
+
+            const meta = document.createElement('div');
+            meta.className = 'scene-card__meta';
+            const snapshot = scene.snapshot || {};
+            const modulatorCount = Object.keys(snapshot.modulatorConfigs || {}).length;
+            const vector = snapshot.liveVector || { x: 0, y: 0 };
+            card.setAttribute(
+                'aria-label',
+                `${scene.name}. ${modulatorCount} modulators. Pad X ${vector.x.toFixed(2)}, Y ${vector.y.toFixed(2)}.`
+            );
+            meta.textContent = `${modulatorCount} modulators • Pad ${vector.x.toFixed(2)}, ${vector.y.toFixed(2)}`;
+            card.appendChild(meta);
+
+            const actions = document.createElement('div');
+            actions.className = 'scene-card__actions';
+
+            const launchBtn = document.createElement('button');
+            launchBtn.type = 'button';
+            launchBtn.className = 'scene-card__action scene-card__action--launch';
+            launchBtn.dataset.sceneAction = 'activate';
+            launchBtn.textContent = 'Launch';
+            actions.appendChild(launchBtn);
+
+            const renameBtn = document.createElement('button');
+            renameBtn.type = 'button';
+            renameBtn.className = 'scene-card__action';
+            renameBtn.dataset.sceneAction = 'rename';
+            renameBtn.textContent = 'Rename';
+            actions.appendChild(renameBtn);
+
+            const duplicateBtn = document.createElement('button');
+            duplicateBtn.type = 'button';
+            duplicateBtn.className = 'scene-card__action';
+            duplicateBtn.dataset.sceneAction = 'duplicate';
+            duplicateBtn.textContent = 'Duplicate';
+            actions.appendChild(duplicateBtn);
+
+            const deleteBtn = document.createElement('button');
+            deleteBtn.type = 'button';
+            deleteBtn.className = 'scene-card__action';
+            deleteBtn.dataset.sceneAction = 'delete';
+            deleteBtn.textContent = 'Delete';
+            actions.appendChild(deleteBtn);
+
+            if (index > 0) {
+                const upBtn = document.createElement('button');
+                upBtn.type = 'button';
+                upBtn.className = 'scene-card__action scene-card__action--move';
+                upBtn.dataset.sceneAction = 'move-up';
+                upBtn.textContent = '↑';
+                upBtn.title = 'Move up';
+                actions.appendChild(upBtn);
+            }
+
+            if (index < scenes.length - 1) {
+                const downBtn = document.createElement('button');
+                downBtn.type = 'button';
+                downBtn.className = 'scene-card__action scene-card__action--move';
+                downBtn.dataset.sceneAction = 'move-down';
+                downBtn.textContent = '↓';
+                downBtn.title = 'Move down';
+                actions.appendChild(downBtn);
+            }
+
+            card.appendChild(actions);
+
+            container.appendChild(card);
+        });
+    }
+
+    selectScene(sceneId, options = {}) {
+        if (!sceneId) return;
+        this.sceneState.selectedSceneId = sceneId;
+        this.renderSceneList();
+        this.updateSceneUiState();
+
+        if (options.announce) {
+            const scene = this.getSceneById(sceneId);
+            if (scene) {
+                this.updateStatus(`Selected ${scene.name}`, 'info');
+            }
+        }
+    }
+
+    launchSelectedScene() {
+        if (!this.sceneState.selectedSceneId) {
+            this.updateStatus('Select a scene to launch', 'warning');
+            return;
+        }
+
+        const scene = this.getSceneById(this.sceneState.selectedSceneId);
+        if (!scene) {
+            this.updateStatus('Scene not found', 'warning');
+            return;
+        }
+
+        this.beginSceneTransition(scene);
+    }
+
+    updateSceneUiState() {
+        const hasSelection = Boolean(this.sceneState.selectedSceneId);
+        if (this.sceneUi.applyBtn) {
+            this.sceneUi.applyBtn.disabled = !hasSelection;
+        }
+    }
+
+    getSceneById(sceneId) {
+        if (!sceneId) return null;
+        return this.sceneState.scenes.find((scene) => scene.id === sceneId) || null;
+    }
+
+    createSceneSnapshot() {
+        const base = this.reactivityController.captureState({
+            includeParameters: false,
+            includeModulatorConfigs: true,
+            includeLiveVector: true
+        });
+
+        return {
+            ...base,
+            axisLocks: { ...this.axisLocks },
+            automationSnapshot: this.cloneAutomationSnapshot(this.automationSnapshot)
+        };
+    }
+
+    captureCurrentScene() {
+        const snapshot = this.createSceneSnapshot();
+        if (!snapshot) {
+            this.updateStatus('Unable to capture scene snapshot', 'error');
+            return null;
+        }
+
+        this.sceneState.captureCount += 1;
+        const id = `scene-${Date.now()}-${Math.random().toString(16).slice(2, 6)}`;
+        const name = `Scene ${this.sceneState.captureCount}`;
+        const scene = {
+            id,
+            name,
+            createdAt: Date.now(),
+            snapshot
+        };
+
+        this.sceneState.scenes.push(scene);
+        this.sceneState.selectedSceneId = id;
+
+        this.renderSceneList();
+        this.updateSceneUiState();
+        this.updateStatus(`Captured ${name}`, 'success');
+
+        return scene;
+    }
+
+    cloneAutomationSnapshot(snapshot) {
+        if (!snapshot) return null;
+        try {
+            return JSON.parse(JSON.stringify(snapshot));
+        } catch (error) {
+            console.warn('Failed to clone automation snapshot', error);
+            return null;
+        }
+    }
+
+    cloneModulatorConfigs(configs = {}) {
+        const cloned = {};
+        Object.entries(configs || {}).forEach(([name, config]) => {
+            const copy = {};
+            Object.entries(config || {}).forEach(([key, value]) => {
+                if (Array.isArray(value)) {
+                    copy[key] = [...value];
+                } else if (value && typeof value === 'object') {
+                    copy[key] = { ...value };
+                } else {
+                    copy[key] = value;
+                }
+            });
+            cloned[name] = copy;
+        });
+        return cloned;
+    }
+
+    cloneSceneSnapshot(snapshot = {}) {
+        return {
+            ...snapshot,
+            liveVector: snapshot.liveVector ? { ...snapshot.liveVector } : undefined,
+            axisLocks: snapshot.axisLocks ? { ...snapshot.axisLocks } : undefined,
+            modulatorConfigs: this.cloneModulatorConfigs(snapshot.modulatorConfigs),
+            automationSnapshot: this.cloneAutomationSnapshot(snapshot.automationSnapshot)
+        };
+    }
+
+    cloneScene(scene) {
+        if (!scene) return null;
+        const snapshot = this.cloneSceneSnapshot(scene.snapshot);
+        return {
+            id: `scene-${Date.now()}-${Math.random().toString(16).slice(2, 6)}`,
+            name: `${scene.name} Copy`,
+            createdAt: Date.now(),
+            snapshot
+        };
+    }
+
+    beginSceneTransition(scene, options = {}) {
+        if (!scene) return;
+
+        const duration = Number.isFinite(options.crossfadeSeconds)
+            ? options.crossfadeSeconds
+            : this.sceneState.crossfadeSeconds;
+        const crossfade = Math.max(0, Number(duration) || 0);
+
+        const targetSnapshot = this.cloneSceneSnapshot(scene.snapshot);
+        const currentSnapshot = this.reactivityController.captureState({
+            includeModulatorConfigs: true,
+            includeLiveVector: true
+        });
+        currentSnapshot.axisLocks = { ...this.axisLocks };
+
+        this.sceneState.selectedSceneId = scene.id;
+        this.renderSceneList();
+        this.updateSceneUiState();
+
+        if (crossfade <= 0.01 || !this.isPlaying) {
+            this.applySceneState(targetSnapshot, { enforceAxisLocks: true, loadAutomation: true });
+            this.sceneState.transition = null;
+            const statusLabel = this.isPlaying
+                ? `Scene "${scene.name}" loaded`
+                : `Scene "${scene.name}" primed`;
+            this.updateStatus(statusLabel, 'success');
+            return;
+        }
+
+        this.sceneState.transition = {
+            sceneId: scene.id,
+            sceneName: scene.name,
+            from: currentSnapshot,
+            to: targetSnapshot,
+            duration: crossfade,
+            elapsed: 0
+        };
+
+        this.suspendAutomationPlayback(600);
+        this.updateStatus(`Scene "${scene.name}" transitioning over ${crossfade.toFixed(1)}s`, 'info');
+    }
+
+    easeSceneProgress(t) {
+        const clamped = Math.max(0, Math.min(1, t));
+        return clamped * clamped * (3 - 2 * clamped);
+    }
+
+    applyBlendedModulatorConfigs(fromConfigs = {}, toConfigs = {}, ratio = 1) {
+        const names = new Set([
+            ...Object.keys(fromConfigs || {}),
+            ...Object.keys(toConfigs || {})
+        ]);
+
+        names.forEach((name) => {
+            const start = fromConfigs?.[name] || {};
+            const end = toConfigs?.[name] || {};
+            const current = this.reactivityController.getModulatorDefinition(name) || {};
+            const updates = {};
+            const numericKeys = [
+                'frequency',
+                'amplitude',
+                'offset',
+                'phaseOffset',
+                'beatBoost',
+                'beatBoostDecay',
+                'amount',
+                'decay',
+                'attack',
+                'base',
+                'smoothing',
+                'division',
+                'rate',
+                'noiseSmoothing'
+            ];
+
+            numericKeys.forEach((key) => {
+                const startVal = Number(start[key]);
+                const endVal = Number(end[key]);
+                if (Number.isFinite(startVal) && Number.isFinite(endVal)) {
+                    updates[key] = startVal + (endVal - startVal) * ratio;
+                } else if (Number.isFinite(endVal)) {
+                    const fallback = Number.isFinite(current[key]) ? current[key] : endVal;
+                    updates[key] = fallback + (endVal - fallback) * ratio;
+                }
+            });
+
+            if (Object.keys(updates).length) {
+                this.reactivityController.updateModulatorConfig(name, updates);
+            }
+        });
+    }
+
+    updateSceneTransition(deltaTime = 0) {
+        const transition = this.sceneState.transition;
+        if (!transition) return;
+
+        const padEngaged = this.xyPad && typeof this.xyPad.isEngaged === 'function'
+            ? this.xyPad.isEngaged()
+            : false;
+        if (padEngaged) {
+            this.sceneState.transition = null;
+            this.updateStatus('Scene transition cancelled – pad engaged', 'warning');
+            return;
+        }
+
+        const dt = Math.max(0, Number(deltaTime) || 0);
+        transition.elapsed += dt;
+        const progress = transition.duration > 0 ? Math.min(1, transition.elapsed / transition.duration) : 1;
+        const eased = this.easeSceneProgress(progress);
+
+        if (transition.from && transition.to) {
+            const fromVector = transition.from.liveVector || { x: 0, y: 0 };
+            const toVector = transition.to.liveVector || fromVector;
+            const blendedVector = {
+                x: fromVector.x + (toVector.x - fromVector.x) * eased,
+                y: fromVector.y + (toVector.y - fromVector.y) * eased
+            };
+            this.commitLiveVector(blendedVector, { updatePad: true });
+            this.applyBlendedModulatorConfigs(transition.from.modulatorConfigs, transition.to.modulatorConfigs, eased);
+        }
+
+        if (progress >= 1) {
+            this.sceneState.transition = null;
+            this.applySceneState(transition.to, { enforceAxisLocks: true, loadAutomation: true });
+            this.updateStatus(`Scene "${transition.sceneName || 'Scene'}" engaged`, 'success');
+        }
+    }
+
+    applySceneState(state = {}, options = {}) {
+        if (!state) return;
+
+        const { enforceAxisLocks = false, loadAutomation = true } = options;
+
+        if (enforceAxisLocks && state.axisLocks) {
+            this.axisLocks = {
+                x: Boolean(state.axisLocks.x),
+                y: Boolean(state.axisLocks.y)
+            };
+            this.updateAxisLockUi();
+        }
+
+        if (state.modulatorConfigs) {
+            this.reactivityController.applyModulatorSceneConfigs(state.modulatorConfigs);
+        }
+
+        if (state.liveVector) {
+            this.commitLiveVector(state.liveVector, { updatePad: true });
+        }
+
+        if (loadAutomation && state.automationSnapshot) {
+            this.loadAutomationSnapshot(state.automationSnapshot);
+        }
+
+        this.refreshAllModulatorControlStates();
+        this.renderReactivityTelemetry();
+    }
+
+    describeSceneTimestamp(timestamp) {
+        if (!timestamp) return '';
+        const now = Date.now();
+        const diff = Math.max(0, now - timestamp);
+        const seconds = Math.round(diff / 1000);
+        if (seconds < 60) {
+            return `${seconds}s ago`;
+        }
+        const minutes = Math.round(seconds / 60);
+        if (minutes < 60) {
+            return `${minutes}m ago`;
+        }
+        const hours = Math.round(minutes / 60);
+        if (hours < 24) {
+            return `${hours}h ago`;
+        }
+        const date = new Date(timestamp);
+        if (!Number.isNaN(date.getTime())) {
+            return date.toLocaleDateString();
+        }
+        return '';
+    }
+
+    updateTempoLinkedControls() {
+        this.refreshAllModulatorControlStates();
+    }
+
+    handleResyncModulators() {
+        if (!this.reactivityController) return;
+        this.reactivityController.retriggerAllModulators();
+        this.updateStatus('Modulators resynced to beat', 'success');
+        this.refreshAllModulatorControlStates();
+        this.renderReactivityTelemetry();
+    }
+
+    initializeAutomationControls() {
+        const storedSnapshot = this.loadAutomationSnapshotFromStorage();
+        if (storedSnapshot) {
+            this.automationSnapshot = storedSnapshot;
+            if (Number.isFinite(storedSnapshot.glide)) {
+                this.setAutomationGlide(storedSnapshot.glide, {
+                    updateSlider: true,
+                    updateLabel: true,
+                    announce: false
+                });
+            }
+        } else {
+            this.setAutomationGlide(this.automationGlide, {
+                updateSlider: true,
+                updateLabel: true,
+                announce: false
+            });
+        }
+
+        this.renderAutomationSnapshotInfo();
+    }
+
+    setAutomationGlide(value, options = {}) {
+        const { updateSlider = true, updateLabel = true, announce = false } = options;
+        let numeric = Number(value);
+        if (!Number.isFinite(numeric)) {
+            numeric = this.automationGlide ?? DEFAULT_AUTOMATION_GLIDE;
+        }
+
+        numeric = Math.max(0, Math.min(0.95, numeric));
+        this.automationGlide = numeric;
+
+        if (updateSlider && this.dom.automationGlideInput) {
+            this.dom.automationGlideInput.value = `${numeric}`;
+        }
+
+        if (updateLabel && this.dom.automationGlideValue) {
+            this.dom.automationGlideValue.textContent = numeric.toFixed(2);
+        }
+
+        if (announce) {
+            this.updateStatus(`Automation glide set to ${numeric.toFixed(2)}`, 'info');
+        }
+
+        this.renderAutomationSnapshotInfo();
+        return numeric;
+    }
+
+    handleSaveAutomationSnapshot() {
+        const snapshot = this.saveAutomationSnapshot();
+        if (!snapshot) return;
+
+        const label = snapshot.meta?.label ? ` (${snapshot.meta.label})` : '';
+        this.updateStatus(`Automation snapshot saved${label}`, 'success');
+    }
+
+    handleLoadAutomationSnapshot() {
+        if (this.isRecordingAutomation) {
+            this.updateStatus('Stop recording before loading a snapshot', 'warning');
+            return;
+        }
+
+        if (!this.hasAutomationSnapshot()) {
+            const storedSnapshot = this.loadAutomationSnapshotFromStorage();
+            if (storedSnapshot) {
+                this.automationSnapshot = storedSnapshot;
+                this.updateAutomationUiState();
+            } else {
+                this.updateStatus('No automation snapshot available to load', 'warning');
+                return;
+            }
+        }
+
+        const loaded = this.loadAutomationSnapshot(this.automationSnapshot);
+        if (!loaded) {
+            this.updateStatus('Failed to load automation snapshot', 'error');
+        }
+    }
+
+    hasAutomationSnapshot() {
+        return Boolean(
+            this.automationSnapshot &&
+            Array.isArray(this.automationSnapshot.points) &&
+            this.automationSnapshot.points.length
+        );
+    }
+
+    getAutomationStorage() {
+        try {
+            if (typeof window !== 'undefined' && window.localStorage) {
+                return window.localStorage;
+            }
+        } catch (error) {
+            console.warn('Automation snapshot storage unavailable', error);
+        }
+        return null;
+    }
+
+    loadAutomationSnapshotFromStorage() {
+        const storage = this.getAutomationStorage();
+        if (!storage) return null;
+
+        try {
+            const raw = storage.getItem(AUTOMATION_SNAPSHOT_STORAGE_KEY);
+            if (!raw) return null;
+
+            const payload = JSON.parse(raw);
+            if (!payload || !Array.isArray(payload.points) || !payload.points.length) {
+                return null;
+            }
+
+            const normalized = this.normalizeAutomationPoints(payload.points);
+            if (!normalized.length) {
+                return null;
+            }
+
+            return {
+                ...payload,
+                points: normalized
+            };
+        } catch (error) {
+            console.warn('Failed to load automation snapshot from storage', error);
+            return null;
+        }
+    }
+
+    persistAutomationSnapshot(snapshot) {
+        const storage = this.getAutomationStorage();
+        if (!storage || !snapshot) return;
+
+        try {
+            storage.setItem(AUTOMATION_SNAPSHOT_STORAGE_KEY, JSON.stringify(snapshot));
+        } catch (error) {
+            console.warn('Failed to persist automation snapshot', error);
+        }
+    }
+
+    saveAutomationSnapshot(meta = {}) {
+        const dataset = this.automationPlaybackData.length
+            ? this.automationPlaybackData
+            : this.normalizeAutomationPoints(this.automationData);
+
+        if (!dataset.length) {
+            this.updateStatus('No automation dataset available to save', 'warning');
+            return null;
+        }
+
+        const normalized = this.normalizeAutomationPoints(dataset);
+        if (!normalized.length) {
+            this.updateStatus('Automation dataset was empty after normalization', 'warning');
+            return null;
+        }
+
+        const metaPayload = {
+            mode: this.mode,
+            system: this.currentSystem,
+            duration: this.audio?.duration ?? null,
+            label: meta.label ?? this.automationPlaybackMeta?.label ?? 'Snapshot',
+            source: meta.source ?? this.automationPlaybackMeta?.source ?? 'snapshot'
+        };
+
+        Object.keys(metaPayload).forEach((key) => {
+            if (metaPayload[key] === undefined || metaPayload[key] === null) {
+                delete metaPayload[key];
+            }
+        });
+
+        const snapshot = {
+            version: 1,
+            savedAt: new Date().toISOString(),
+            glide: this.automationGlide,
+            points: normalized,
+            meta: metaPayload
+        };
+
+        this.automationSnapshot = snapshot;
+        this.persistAutomationSnapshot(snapshot);
+        this.updateAutomationUiState();
+        return snapshot;
+    }
+
+    loadAutomationSnapshot(snapshot) {
+        if (!snapshot || !Array.isArray(snapshot.points) || !snapshot.points.length) {
+            return false;
+        }
+
+        const glide = Number.isFinite(snapshot.glide) ? snapshot.glide : this.automationGlide;
+        this.setAutomationGlide(glide, { updateSlider: true, updateLabel: true, announce: false });
+
+        const normalizedPoints = this.normalizeAutomationPoints(snapshot.points);
+        if (!normalizedPoints.length) {
+            return false;
+        }
+
+        const prepared = this.prepareAutomationPlayback(normalizedPoints, {
+            ...snapshot.meta,
+            source: snapshot.meta?.source ?? 'snapshot',
+            label: snapshot.meta?.label ?? 'Snapshot',
+            glide,
+            updatePad: true
+        });
+
+        if (prepared) {
+            this.updateStatus(
+                `Automation snapshot loaded${snapshot.meta?.label ? ` (${snapshot.meta.label})` : ''}`,
+                'success'
+            );
+        }
+
+        return prepared;
+    }
+
+    renderAutomationSnapshotInfo() {
+        if (!this.dom.automationSnapshotInfo) return;
+
+        if (!this.hasAutomationSnapshot()) {
+            this.dom.automationSnapshotInfo.textContent = 'No snapshot saved';
+            return;
+        }
+
+        const { meta = {}, savedAt, points = [] } = this.automationSnapshot;
+        const label = meta.label ?? meta.source ?? 'Snapshot';
+        const rawGlide = Number.isFinite(this.automationSnapshot.glide)
+            ? this.automationSnapshot.glide
+            : this.automationGlide;
+        const glideValue = Number.isFinite(rawGlide) ? rawGlide : DEFAULT_AUTOMATION_GLIDE;
+
+        let timestamp = '';
+        if (savedAt) {
+            const date = new Date(savedAt);
+            if (!Number.isNaN(date.getTime())) {
+                timestamp = `${date.toLocaleDateString()} ${date.toLocaleTimeString()}`;
+            }
+        }
+
+        const parts = [label];
+        if (timestamp) {
+            parts.push(timestamp);
+        }
+        parts.push(`${points.length} pts`);
+        parts.push(`Glide ${glideValue.toFixed(2)}`);
+
+        this.dom.automationSnapshotInfo.textContent = parts.join(' • ');
+    }
+
+    updateReactivityReadout(vector = this.reactivityController.getLiveVector()) {
+        if (this.dom.reactivityReadoutX) {
+            this.dom.reactivityReadoutX.textContent = `X: ${vector.x.toFixed(2)}`;
+        }
+        if (this.dom.reactivityReadoutY) {
+            this.dom.reactivityReadoutY.textContent = `Y: ${vector.y.toFixed(2)}`;
+        }
+    }
+
+    applyLiveVector() {
+        const params = this.reactivityController.compute(this.lastAudioData, {
+            time: this.audio.currentTime,
+            deltaTime: 0,
+            mode: this.mode,
+            isPlaying: this.isPlaying,
+            consumeBeat: false
+        });
+        this.applyParameters(params);
+    }
+
+    resetAutomationState(options = {}) {
+        const { preservePlaybackData = true } = options;
+
+        this.isRecordingAutomation = false;
+        this.automationData = [];
+        this.lastAutomationTimestamp = -1;
+
+        if (!preservePlaybackData) {
+            this.automationPlaybackData = [];
+            this.automationPlaybackIndex = 0;
+            this.automationPlaybackVector = { x: 0, y: 0 };
+            this.isAutomationPlaybackEnabled = false;
+        }
+
+        if (this.dom.recordAutomationBtn) {
+            this.dom.recordAutomationBtn.textContent = '● Start Recording';
+            this.dom.recordAutomationBtn.classList.remove(RECORD_BUTTON_ACTIVE_CLASS);
+        }
+
+        this.updateAutomationUiState();
+    }
+
+    toggleAutomationRecording() {
+        this.isRecordingAutomation = !this.isRecordingAutomation;
+
+        if (this.isRecordingAutomation) {
+            this.automationData = [];
+            this.lastAutomationTimestamp = -1;
+            this.isAutomationPlaybackEnabled = false;
+            this.updateStatus('Automation recording armed — playback paused', 'info');
+            if (this.dom.recordAutomationBtn) {
+                this.dom.recordAutomationBtn.textContent = '■ Stop Recording';
+                this.dom.recordAutomationBtn.classList.add(RECORD_BUTTON_ACTIVE_CLASS);
+            }
+        } else {
+            const hasData = this.automationData.length > 0;
+            if (hasData) {
+                this.prepareAutomationPlayback(this.automationData, {
+                    source: 'live-recording',
+                    label: 'Live Recording',
+                    updatePad: false
+                });
+                this.updateStatus('Automation recording stopped — playback ready', 'success');
+            } else {
+                this.updateStatus('Automation recording stopped', 'info');
+            }
+            if (this.dom.recordAutomationBtn) {
+                this.dom.recordAutomationBtn.textContent = '● Start Recording';
+                this.dom.recordAutomationBtn.classList.remove(RECORD_BUTTON_ACTIVE_CLASS);
+            }
+        }
+
+        this.updateAutomationUiState();
+    }
+
+    exportAutomationData() {
+        const dataset = this.automationPlaybackData.length
+            ? this.automationPlaybackData
+            : this.normalizeAutomationPoints(this.automationData);
+
+        if (!dataset.length) {
+            this.updateStatus('No automation data to export', 'warning');
+            return;
+        }
+
+        const payload = {
+            createdAt: new Date().toISOString(),
+            duration: this.audio?.duration ?? null,
+            mode: this.mode,
+            system: this.currentSystem,
+            ...this.automationPlaybackMeta,
+            points: dataset
+        };
+
+        if (dataset.length > 1) {
+            let totalInterval = 0;
+            for (let i = 1; i < dataset.length; i += 1) {
+                totalInterval += Math.max(dataset[i].time - dataset[i - 1].time, 0);
+            }
+            const avgInterval = totalInterval / (dataset.length - 1);
+            if (avgInterval > 0) {
+                payload.estimatedFrameRate = Number((1 / avgInterval).toFixed(2));
+            }
+        }
+
+        const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = 'reactivity-automation.json';
+        link.click();
+        URL.revokeObjectURL(url);
+
+        this.updateStatus('Automation data exported', 'success');
+    }
+
+    recordAutomationPoint(vector) {
+        if (!this.isRecordingAutomation) return;
+
+        const time = Number.isFinite(this.audio.currentTime) ? this.audio.currentTime : 0;
+        const roundedTime = Number(time.toFixed(3));
+        if (this.lastAutomationTimestamp === roundedTime) {
+            const last = this.automationData[this.automationData.length - 1];
+            if (last) {
+                const safeVector = this.clampLiveVector(vector);
+                last.x = Number(safeVector.x.toFixed(3));
+                last.y = Number(safeVector.y.toFixed(3));
+            }
+            return;
+        }
+
+        this.lastAutomationTimestamp = roundedTime;
+        const safeVector = this.clampLiveVector(vector);
+        this.automationData.push({
+            time: roundedTime,
+            x: Number(safeVector.x.toFixed(3)),
+            y: Number(safeVector.y.toFixed(3))
+        });
+    }
+
+    clampLiveVector(vector = {}) {
+        const clamp = (value) => {
+            const numeric = Number(value);
+            if (!Number.isFinite(numeric)) return 0;
+            return Math.max(-1, Math.min(1, numeric));
+        };
+
+        return {
+            x: clamp(vector.x),
+            y: clamp(vector.y)
+        };
+    }
+
+    commitLiveVector(vector, options = {}) {
+        const { fromPad = false, updatePad = false } = options;
+        const safeVector = this.clampLiveVector(vector);
+        const current = this.reactivityController.getLiveVector();
+        const lockedVector = {
+            x: this.axisLocks?.x ? current.x : safeVector.x,
+            y: this.axisLocks?.y ? current.y : safeVector.y
+        };
+
+        this.reactivityController.setLiveVector(lockedVector);
+
+        if (updatePad && this.xyPad) {
+            const engaged = typeof this.xyPad.isEngaged === 'function' ? this.xyPad.isEngaged() : false;
+            if (!engaged || fromPad) {
+                this.xyPad.setValue(lockedVector, true);
+            }
+        }
+
+        this.updateReactivityReadout(lockedVector);
+        this.renderReactivityTelemetry();
+        return lockedVector;
+    }
+
+    normalizeAutomationPoints(points = []) {
+        if (!Array.isArray(points)) return [];
+
+        const deduped = new Map();
+
+        points.forEach((point) => {
+            if (!point) return;
+            const time = Number(point.time);
+            if (!Number.isFinite(time)) return;
+            const safeVector = this.clampLiveVector(point);
+            const key = time.toFixed(3);
+            deduped.set(key, {
+                time,
+                x: Number(safeVector.x.toFixed(4)),
+                y: Number(safeVector.y.toFixed(4))
             });
         });
 
-        // Audio events
-        this.audio.addEventListener('ended', () => this.stop());
-        this.audio.addEventListener('timeupdate', () => this.updateTimeline());
+        return Array.from(deduped.values()).sort((a, b) => a.time - b.time);
+    }
+
+    prepareAutomationPlayback(points, meta = {}) {
+        const normalized = this.normalizeAutomationPoints(points);
+
+        if (!normalized.length) {
+            this.automationPlaybackData = [];
+            this.automationPlaybackIndex = 0;
+            this.automationPlaybackVector = { x: 0, y: 0 };
+            this.isAutomationPlaybackEnabled = false;
+            this.automationPlaybackMeta = null;
+            this.updateAutomationUiState();
+            return false;
+        }
+
+        this.automationPlaybackData = normalized;
+        this.automationPlaybackIndex = 0;
+        const initialVector = this.clampLiveVector(normalized[0]);
+        this.automationPlaybackVector = initialVector;
+        const { updatePad, ...restMeta } = meta;
+        const sanitizedMeta = Object.fromEntries(
+            Object.entries(restMeta).filter(([, value]) => value !== undefined && value !== null)
+        );
+
+        if (Number.isFinite(sanitizedMeta.glide)) {
+            this.setAutomationGlide(sanitizedMeta.glide, {
+                updateSlider: true,
+                updateLabel: true,
+                announce: false
+            });
+        }
+
+        const glideValue = Number.isFinite(sanitizedMeta.glide) ? sanitizedMeta.glide : this.automationGlide;
+
+        this.automationPlaybackMeta = {
+            mode: this.mode,
+            system: this.currentSystem,
+            duration: this.audio?.duration ?? null,
+            source: sanitizedMeta.source ?? 'external',
+            label: sanitizedMeta.label ?? sanitizedMeta.source ?? 'automation',
+            updatedAt: new Date().toISOString(),
+            ...sanitizedMeta,
+            glide: glideValue
+        };
+
+        if (updatePad !== false) {
+            this.commitLiveVector(initialVector, { updatePad: true });
+        }
+
+        this.updateAutomationUiState();
+        return true;
+    }
+
+    toggleAutomationPlayback() {
+        if (this.isRecordingAutomation) {
+            this.updateStatus('Stop recording before enabling playback', 'warning');
+            return;
+        }
+
+        if (!this.automationPlaybackData.length) {
+            this.updateStatus('Record or import automation data first', 'warning');
+            return;
+        }
+
+        this.isAutomationPlaybackEnabled = !this.isAutomationPlaybackEnabled;
+
+        if (this.isAutomationPlaybackEnabled) {
+            this.automationPlaybackVector = this.clampLiveVector(this.reactivityController.getLiveVector());
+            const currentTime = Number.isFinite(this.audio.currentTime) ? this.audio.currentTime : 0;
+            const target = this.resolveAutomationVector(currentTime) ?? this.automationPlaybackVector;
+            if (target) {
+                this.automationPlaybackVector = this.clampLiveVector(target);
+                this.commitLiveVector(this.automationPlaybackVector, { updatePad: true });
+            }
+            this.automationResumeTime = this.getNow();
+            this.updateStatus('Automation playback enabled', 'success');
+        } else {
+            this.updateStatus('Automation playback disabled', 'info');
+        }
+
+        this.updateAutomationUiState();
+    }
+
+    updateAutomationUiState() {
+        const hasData = this.automationPlaybackData.length > 0;
+        if (this.dom.exportAutomationBtn) {
+            this.dom.exportAutomationBtn.disabled = this.isRecordingAutomation || !hasData;
+        }
+        if (this.dom.automationPlaybackBtn) {
+            this.dom.automationPlaybackBtn.disabled = this.isRecordingAutomation || !hasData;
+            this.dom.automationPlaybackBtn.classList.toggle(
+                AUTOMATION_MODE_ACTIVE_CLASS,
+                this.isAutomationPlaybackEnabled
+            );
+            this.dom.automationPlaybackBtn.textContent = this.isAutomationPlaybackEnabled
+                ? '⏸ Automation Playback'
+                : '▶ Automation Playback';
+            this.dom.automationPlaybackBtn.setAttribute('aria-pressed', this.isAutomationPlaybackEnabled ? 'true' : 'false');
+        }
+
+        if (this.dom.saveAutomationSnapshotBtn) {
+            this.dom.saveAutomationSnapshotBtn.disabled = this.isRecordingAutomation || !hasData;
+        }
+
+        const hasSnapshot = this.hasAutomationSnapshot();
+        if (this.dom.loadAutomationSnapshotBtn) {
+            this.dom.loadAutomationSnapshotBtn.disabled = !hasSnapshot;
+        }
+
+        if (this.dom.automationGlideValue) {
+            this.dom.automationGlideValue.textContent = this.automationGlide.toFixed(2);
+        }
+
+        if (this.dom.automationGlideInput) {
+            this.dom.automationGlideInput.value = `${this.automationGlide}`;
+        }
+
+        this.renderAutomationSnapshotInfo();
+    }
+
+    suspendAutomationPlayback(duration = 800) {
+        const now = this.getNow();
+        this.automationResumeTime = Math.max(this.automationResumeTime, now + duration);
+    }
+
+    getNow() {
+        if (typeof performance !== 'undefined' && typeof performance.now === 'function') {
+            return performance.now();
+        }
+        return Date.now();
+    }
+
+    resolveAutomationVector(currentTime = 0) {
+        if (!this.automationPlaybackData.length) {
+            return null;
+        }
+
+        const data = this.automationPlaybackData;
+        if (data.length === 1) {
+            this.automationPlaybackIndex = 0;
+            return this.clampLiveVector(data[0]);
+        }
+
+        const safeTime = Number.isFinite(currentTime) ? currentTime : 0;
+
+        if (safeTime <= data[0].time) {
+            this.automationPlaybackIndex = 0;
+            return this.clampLiveVector(data[0]);
+        }
+
+        if (safeTime >= data[data.length - 1].time) {
+            this.automationPlaybackIndex = data.length - 1;
+            return this.clampLiveVector(data[data.length - 1]);
+        }
+
+        while (
+            this.automationPlaybackIndex < data.length - 1 &&
+            safeTime >= data[this.automationPlaybackIndex + 1].time
+        ) {
+            this.automationPlaybackIndex += 1;
+        }
+
+        while (this.automationPlaybackIndex > 0 && safeTime < data[this.automationPlaybackIndex].time) {
+            this.automationPlaybackIndex -= 1;
+        }
+
+        const start = data[this.automationPlaybackIndex];
+        const end = data[this.automationPlaybackIndex + 1];
+        if (!end) {
+            return this.clampLiveVector(start);
+        }
+
+        const span = Math.max(end.time - start.time, 0.0001);
+        const ratio = Math.max(0, Math.min(1, (safeTime - start.time) / span));
+
+        return this.clampLiveVector({
+            x: start.x + (end.x - start.x) * ratio,
+            y: start.y + (end.y - start.y) * ratio
+        });
+    }
+
+    applyAutomationPlayback(currentTime, deltaTime) {
+        if (!this.isAutomationPlaybackEnabled || !this.automationPlaybackData.length) {
+            return null;
+        }
+
+        const now = this.getNow();
+        if (now < this.automationResumeTime) {
+            return null;
+        }
+
+        const padEngaged = this.xyPad && typeof this.xyPad.isEngaged === 'function' ? this.xyPad.isEngaged() : false;
+        if (padEngaged) {
+            this.automationPlaybackVector = this.clampLiveVector(this.reactivityController.getLiveVector());
+            this.suspendAutomationPlayback();
+            return null;
+        }
+
+        const target = this.resolveAutomationVector(currentTime);
+        if (!target) {
+            return null;
+        }
+
+        const dt = Math.max(deltaTime || 0, 1 / 240);
+        const baseGlide = Math.max(0, Math.min(0.95, this.automationGlide ?? DEFAULT_AUTOMATION_GLIDE));
+
+        let smoothing = 1;
+        if (baseGlide > 0 && baseGlide < 0.999) {
+            const frames = Math.max(dt * 60, 1);
+            smoothing = 1 - Math.pow(1 - baseGlide, frames);
+        }
+
+        const currentVector = this.automationPlaybackVector || this.clampLiveVector(
+            this.reactivityController.getLiveVector()
+        );
+
+        const blended = {
+            x: currentVector.x + (target.x - currentVector.x) * smoothing,
+            y: currentVector.y + (target.y - currentVector.y) * smoothing
+        };
+
+        this.automationPlaybackVector = blended;
+        return this.commitLiveVector(blended, { updatePad: true });
+    }
+
+    promptAutomationImport() {
+        if (this.isRecordingAutomation) {
+            this.updateStatus('Stop recording before importing automation', 'warning');
+            return;
+        }
+
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = '.json';
+        input.onchange = (event) => {
+            const file = event.target.files?.[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = (loadEvent) => {
+                try {
+                    const payload = JSON.parse(loadEvent.target.result);
+                    this.ingestAutomationPayload(payload, file.name);
+                } catch (error) {
+                    console.error('Failed to import automation data', error);
+                    this.updateStatus('Failed to import automation data', 'error');
+                }
+            };
+            reader.readAsText(file);
+        };
+        input.click();
+    }
+
+    ingestAutomationPayload(payload, label = 'automation') {
+        try {
+            const points = Array.isArray(payload)
+                ? payload
+                : Array.isArray(payload?.points)
+                ? payload.points
+                : null;
+
+            if (!points || !points.length) {
+                throw new Error('No automation points found');
+            }
+
+            const meta = {
+                source: payload?.source ?? 'import',
+                label: payload?.label ?? label,
+                mode: payload?.mode,
+                duration: payload?.duration,
+                glide: Number.isFinite(payload?.glide) ? payload.glide : undefined,
+                updatePad: true
+            };
+
+            if (Number.isFinite(payload?.glide)) {
+                this.setAutomationGlide(payload.glide, {
+                    updateSlider: true,
+                    updateLabel: true,
+                    announce: false
+                });
+            }
+
+            const prepared = this.prepareAutomationPlayback(points, meta);
+
+            if (!prepared) {
+                throw new Error('Automation dataset was empty after normalization');
+            }
+
+            this.updateStatus(`Loaded automation from ${label}`, 'success');
+        } catch (error) {
+            console.error('Automation payload ingestion failed', error);
+            this.updateStatus('Failed to parse automation payload', 'error');
+        }
     }
 
     async loadAudioFile(file) {
         if (!file) return;
 
         const url = URL.createObjectURL(file);
+        if (this.currentAudioObjectUrl) {
+            URL.revokeObjectURL(this.currentAudioObjectUrl);
+        }
+        this.currentAudioObjectUrl = url;
         this.audio.src = url;
+        this.audio.load();
 
-        // Connect audio to analyser
         if (!this.sourceNode) {
             this.sourceNode = this.audioContext.createMediaElementSource(this.audio);
             this.sourceNode.connect(this.analyser);
             this.analyser.connect(this.audioContext.destination);
         }
 
-        // Enable controls
-        document.getElementById('play-btn').disabled = false;
-        document.getElementById('pause-btn').disabled = false;
-        document.getElementById('stop-btn').disabled = false;
+        if (this.dom.playButton) this.dom.playButton.disabled = false;
+        if (this.dom.pauseButton) this.dom.pauseButton.disabled = false;
+        if (this.dom.stopButton) this.dom.stopButton.disabled = false;
 
-        this.updateStatus(`Loaded: ${file.name}`);
+        this.resetAutomationState();
+        this.automationPlaybackIndex = 0;
+        this.updateStatus(`Loaded: ${file.name}`, 'success');
         console.log('🎵 Audio file loaded:', file.name);
     }
 
+    async switchSystem(systemName) {
+        if (!systemName) return;
+
+        if (this.pendingSystemSwitch) {
+            await this.pendingSystemSwitch;
+        }
+
+        const performSwitch = async () => {
+            if (this.currentEngine && typeof this.currentEngine.destroy === 'function') {
+                try {
+                    this.currentEngine.destroy();
+                } catch (error) {
+                    console.warn('Engine destroy failed', error);
+                }
+            }
+
+            const container = document.getElementById('vib34dLayers');
+            if (container) {
+                container.innerHTML = '';
+            }
+
+            const createCanvas = (id) => {
+                const canvas = document.createElement('canvas');
+                canvas.id = id;
+                canvas.width = window.innerWidth;
+                canvas.height = window.innerHeight;
+                container?.appendChild(canvas);
+            };
+
+            if (systemName === 'faceted') {
+                ['background', 'shadow', 'content', 'highlight', 'accent'].forEach((layer) => {
+                    createCanvas(`${layer}-canvas`);
+                });
+                this.currentEngine = new VIB34DIntegratedEngine();
+            } else if (systemName === 'quantum') {
+                ['background', 'shadow', 'content', 'highlight', 'accent'].forEach((layer) => {
+                    createCanvas(`quantum-${layer}-canvas`);
+                });
+                this.currentEngine = new QuantumEngine();
+            } else if (systemName === 'holographic') {
+                for (let i = 0; i < 5; i += 1) {
+                    createCanvas(`holo-layer-${i}`);
+                }
+                this.currentEngine = new RealHolographicSystem();
+            } else {
+                console.warn(`Unknown system: ${systemName}`);
+                return;
+            }
+
+            this.currentSystem = systemName;
+            this.reactivityController.reset();
+
+            if (this.dom.systemButtons) {
+                this.dom.systemButtons.forEach((btn) => {
+                    btn.classList.toggle('active', btn.dataset.system === systemName);
+                });
+            }
+
+            if (this.lastReactiveParameters && Object.keys(this.lastReactiveParameters).length) {
+                this.applyParameters(this.lastReactiveParameters);
+            }
+            this.applyLiveVector();
+
+            this.updateStatus(`Switched to ${systemName.toUpperCase()} system`, 'success');
+        };
+
+        this.pendingSystemSwitch = performSwitch();
+        try {
+            await this.pendingSystemSwitch;
+        } finally {
+            this.pendingSystemSwitch = null;
+        }
+    }
+
     async generateDefaultChoreography() {
-        // Auto-generate choreography sequences WITH SYSTEM SWITCHING
         this.sequences = [
             {
                 time: 0,
                 duration: 15,
                 effects: {
-                    system: 'faceted', // Start with Faceted
+                    system: 'faceted',
                     geometry: 'cycle',
                     rotation: 'smooth',
                     chaos: 0.1,
@@ -136,7 +2587,7 @@ export class MusicVideoChoreographer {
                 time: 15,
                 duration: 15,
                 effects: {
-                    system: 'faceted', // Stay on Faceted
+                    system: 'faceted',
                     geometry: 'morph',
                     rotation: 'accelerate',
                     chaos: 0.3,
@@ -149,7 +2600,7 @@ export class MusicVideoChoreographer {
                 time: 30,
                 duration: 20,
                 effects: {
-                    system: 'quantum', // SWITCH to Quantum for drop
+                    system: 'quantum',
                     geometry: 'random',
                     rotation: 'chaos',
                     chaos: 0.8,
@@ -162,7 +2613,7 @@ export class MusicVideoChoreographer {
                 time: 50,
                 duration: 10,
                 effects: {
-                    system: 'holographic', // SWITCH to Holographic
+                    system: 'holographic',
                     geometry: 'explosive',
                     rotation: 'extreme',
                     chaos: 0.9,
@@ -175,7 +2626,7 @@ export class MusicVideoChoreographer {
                 time: 60,
                 duration: 15,
                 effects: {
-                    system: 'faceted', // BACK to Faceted for breakdown
+                    system: 'faceted',
                     geometry: 'hold',
                     rotation: 'minimal',
                     chaos: 0.05,
@@ -189,7 +2640,7 @@ export class MusicVideoChoreographer {
                 time: 75,
                 duration: 999,
                 effects: {
-                    system: 'quantum', // Final drop on Quantum
+                    system: 'quantum',
                     geometry: 'explosive',
                     rotation: 'extreme',
                     chaos: 1.0,
@@ -201,12 +2652,13 @@ export class MusicVideoChoreographer {
         ];
 
         this.renderSequenceList();
-        console.log('🎬 Generated default choreography with system switching');
+        this.updateStatus('Default choreography generated', 'info');
     }
 
     renderSequenceList() {
-        const list = document.getElementById('sequence-list');
+        const list = this.dom.sequenceList || document.getElementById('sequence-list');
         if (!list) return;
+        this.dom.sequenceList = list;
 
         list.innerHTML = this.sequences.map((seq, index) => `
             <div class="sequence-item">
@@ -259,7 +2711,7 @@ export class MusicVideoChoreographer {
                     </select>
                 </div>
                 <div style="font-size: 9px; color: #666; margin-top: 5px; padding: 5px; background: rgba(0,255,255,0.05); border-radius: 3px;">
-                    ℹ️ Audio reactivity is ALWAYS active - these are base values that audio modulates
+                    ℹ️ Audio reactivity is ALWAYS active - these are base values that audio and the XY pad modulate
                 </div>
                 <button onclick="choreographer.deleteSequence(${index})" style="margin-top: 10px; background: #f44; font-size: 10px; padding: 5px;">Delete</button>
             </div>
@@ -292,354 +2744,370 @@ export class MusicVideoChoreographer {
         this.renderSequenceList();
     }
 
-    async switchSystem(systemName) {
-        // Cleanup old engine
-        if (this.currentEngine && this.currentEngine.destroy) {
-            this.currentEngine.destroy();
-        }
-
-        // Clear canvases
-        const container = document.getElementById('vib34dLayers');
-        container.innerHTML = '';
-
-        // Create canvases based on system requirements
-        if (systemName === 'faceted') {
-            const layers = ['background', 'shadow', 'content', 'highlight', 'accent'];
-            layers.forEach(layer => {
-                const canvas = document.createElement('canvas');
-                canvas.id = `${layer}-canvas`;
-                canvas.width = window.innerWidth;
-                canvas.height = window.innerHeight;
-                container.appendChild(canvas);
-            });
-        } else if (systemName === 'quantum') {
-            const layers = ['background', 'shadow', 'content', 'highlight', 'accent'];
-            layers.forEach(layer => {
-                const canvas = document.createElement('canvas');
-                canvas.id = `quantum-${layer}-canvas`;
-                canvas.width = window.innerWidth;
-                canvas.height = window.innerHeight;
-                container.appendChild(canvas);
-            });
-        } else if (systemName === 'holographic') {
-            for (let i = 0; i < 5; i++) {
-                const canvas = document.createElement('canvas');
-                canvas.id = `holo-layer-${i}`;
-                canvas.width = window.innerWidth;
-                canvas.height = window.innerHeight;
-                container.appendChild(canvas);
-            }
-        }
-
-        // Initialize new engine
-        try {
-            if (systemName === 'faceted') {
-                this.currentEngine = new VIB34DIntegratedEngine();
-            } else if (systemName === 'quantum') {
-                this.currentEngine = new QuantumEngine();
-            } else if (systemName === 'holographic') {
-                this.currentEngine = new RealHolographicSystem();
-            }
-
-            this.currentSystem = systemName;
-
-            // Update UI
-            document.querySelectorAll('.system-btn').forEach(btn => {
-                btn.classList.toggle('active', btn.dataset.system === systemName);
-            });
-
-            console.log('✅ Switched to', systemName, 'system');
-        } catch (error) {
-            console.error('Failed to switch system:', error);
-        }
-    }
-
     play() {
+        if (!this.audioContext) return;
+
         if (this.audioContext.state === 'suspended') {
             this.audioContext.resume();
         }
 
         this.audio.play();
         this.isPlaying = true;
+        this.lastFrameTime = performance.now();
         this.startVisualization();
-        this.updateStatus('Playing...');
+        this.updateStatus('Playback started', 'success');
     }
 
     pause() {
         this.audio.pause();
         this.isPlaying = false;
-        this.updateStatus('Paused');
+        if (this.animationId) {
+            cancelAnimationFrame(this.animationId);
+            this.animationId = null;
+        }
+        this.updateStatus('Paused', 'info');
     }
 
     stop() {
         this.audio.pause();
         this.audio.currentTime = 0;
         this.isPlaying = false;
-        this.updateStatus('Stopped');
+        if (this.animationId) {
+            cancelAnimationFrame(this.animationId);
+            this.animationId = null;
+        }
+        this.updateTimeline();
+        this.updateStatus('Stopped', 'info');
     }
 
     startVisualization() {
-        const render = () => {
-            if (!this.isPlaying) return;
+        if (this.animationId) {
+            cancelAnimationFrame(this.animationId);
+        }
 
-            // Get audio data
+        const render = () => {
+            if (!this.isPlaying) {
+                this.animationId = null;
+                return;
+            }
+
             this.analyser.getByteFrequencyData(this.dataArray);
             const audioData = this.processAudioData(this.dataArray);
 
-            // Detect beats
-            this.detectBeat(audioData);
+            const now = performance.now();
+            const deltaTime = (now - this.lastFrameTime) / 1000;
+            this.lastFrameTime = now;
 
-            // Apply mode-specific logic
-            if (this.mode === 'reactive') {
-                this.applyReactiveMode(audioData);
-            } else if (this.mode === 'choreographed') {
-                this.applyChoreography(audioData);
+            this.detectBeat(audioData, now);
+
+            const frameContext = {
+                time: this.audio.currentTime,
+                deltaTime,
+                mode: this.mode,
+                isPlaying: this.isPlaying
+            };
+
+            this.applyAutomationPlayback(frameContext.time, deltaTime);
+            this.updateSceneTransition(deltaTime);
+
+            if (this.mode === 'choreographed') {
+                this.applyChoreography(audioData, frameContext);
+            } else {
+                this.applyReactiveMode(audioData, frameContext);
             }
 
-            // Update info panel
             this.updateInfoPanel(audioData);
 
             this.animationId = requestAnimationFrame(render);
         };
-        render();
+
+        this.animationId = requestAnimationFrame(render);
     }
 
     processAudioData(dataArray) {
-        const bass = this.getAverage(dataArray, 0, 100) / 255;
-        const mid = this.getAverage(dataArray, 100, 400) / 255;
-        const high = this.getAverage(dataArray, 400, 1024) / 255;
-        const energy = (bass + mid + high) / 3;
+        const bass = this.getAverage(dataArray, 0, 96) / 255;
+        const lowMid = this.getAverage(dataArray, 96, 256) / 255;
+        const mid = this.getAverage(dataArray, 256, 512) / 255;
+        const high = this.getAverage(dataArray, 512, 1024) / 255;
 
-        return { bass, mid, high, energy };
+        const energy = (bass + lowMid + mid + high) / 4;
+
+        this.smoothedEnergy = this.smoothedEnergy * 0.85 + energy * 0.15;
+        const transient = Math.max(0, energy - this.previousAudio.energy);
+        this.energyMomentum = this.energyMomentum * 0.9 + transient;
+
+        const brightness = (mid + high) / 2;
+        const warmth = (bass + lowMid) / 2;
+        const spectralTilt = brightness - warmth;
+
+        const dynamics = Math.max(0, energy - this.smoothedEnergy);
+        const momentum = Math.max(0, Math.min(1, this.energyMomentum));
+
+        const data = {
+            bass,
+            lowMid,
+            mid,
+            high,
+            energy,
+            brightness,
+            warmth,
+            spectralTilt,
+            transient: Math.max(0, Math.min(1, transient * 2)),
+            dynamics,
+            momentum
+        };
+
+        this.previousAudio = { energy, bass, mid, high, lowMid };
+        this.lastAudioData = data;
+        return data;
     }
 
     getAverage(array, start, end) {
         let sum = 0;
-        for (let i = start; i < end; i++) {
+        for (let i = start; i < end; i += 1) {
             sum += array[i];
         }
         return sum / (end - start);
     }
 
-    detectBeat(audioData) {
-        const now = Date.now();
-        if (audioData.bass > this.beatThreshold && now - this.lastBeatTime > this.beatInterval) {
-            this.lastBeatTime = now;
-            this.onBeat();
-            this.detectedBPM = Math.round(60000 / this.beatInterval);
+    detectBeat(audioData, timestamp = performance.now()) {
+        const sinceLast = timestamp - this.lastBeatTime;
+        const liveVector = this.reactivityController.getLiveVector();
+        const bassThreshold = 0.55 - liveVector.y * 0.1;
+        const transientGate = audioData.transient > 0.25;
+        const bassGate = audioData.bass > bassThreshold;
+        const dynamicInterval = Math.max(this.minimumBeatInterval, 620 - audioData.energy * 220 - audioData.momentum * 180);
+
+        if ((bassGate || transientGate) && sinceLast > dynamicInterval) {
+            this.lastBeatTime = timestamp;
+            if (this.previousBeatTimestamp) {
+                const interval = timestamp - this.previousBeatTimestamp;
+                if (interval > 0) {
+                    this.detectedBPM = Math.round(60000 / interval);
+                    this.reactivityController.setGlobalTempo(this.detectedBPM);
+                    this.updateTempoLinkedControls();
+                }
+            }
+            this.previousBeatTimestamp = timestamp;
+            this.onBeat(audioData);
         }
     }
 
-    onBeat() {
-        // Visual beat indicator
+    onBeat(audioData) {
         const indicator = document.getElementById('beatIndicator');
-        indicator.classList.add('active');
-        setTimeout(() => indicator.classList.remove('active'), 300);
+        if (indicator) {
+            indicator.classList.add('active');
+            setTimeout(() => indicator.classList.remove('active'), 180);
+        }
 
-        // Trigger engine effects
-        if (this.currentEngine && this.currentEngine.triggerClick) {
-            this.currentEngine.triggerClick(1.0);
+        if (this.currentEngine && typeof this.currentEngine.triggerClick === 'function') {
+            this.currentEngine.triggerClick(1.0 + audioData.energy * 0.5);
+        }
+
+        this.reactivityController.handleBeat(1 + audioData.energy * 0.4);
+    }
+
+    applyParameters(paramMap) {
+        if (!this.currentEngine || !paramMap) return;
+
+        const entries = Object.entries(paramMap).filter(([, value]) => Number.isFinite(value));
+        if (!entries.length) return;
+
+        entries.forEach(([key, value]) => {
+            this.lastReactiveParameters[key] = value;
+        });
+
+        const payload = Object.fromEntries(entries);
+
+        this.renderReactivityTelemetry(this.lastReactiveParameters, this.reactivityController.getModulatorSnapshot());
+
+        if (this.currentEngine.parameterManager && typeof this.currentEngine.parameterManager.setParameters === 'function') {
+            this.currentEngine.parameterManager.setParameters(payload);
+        } else if (typeof this.currentEngine.updateParameters === 'function') {
+            this.currentEngine.updateParameters(payload);
+        } else if (typeof this.currentEngine.updateParameter === 'function') {
+            entries.forEach(([key, value]) => this.currentEngine.updateParameter(key, value));
         }
     }
 
-    /**
-     * REACTIVE MODE: Built-in audio reactivity with direct parameter mapping
-     */
-    applyReactiveMode(audioData) {
-        const setParam = (param, value) => {
-            if (this.currentEngine.parameterManager) {
-                this.currentEngine.parameterManager.setParameter(param, value);
-            } else if (this.currentEngine.updateParameter) {
-                this.currentEngine.updateParameter(param, value);
-            } else if (this.currentEngine.updateParameters) {
-                this.currentEngine.updateParameters({ [param]: value });
-            }
-        };
+    applyReactiveMode(audioData, context) {
+        const params = this.reactivityController.compute(audioData, context);
+        this.applyParameters(params);
 
-        // Direct audio-to-parameter mapping
-        const densityBase = 15 + audioData.bass * this.reactivitySettings.bassToGridDensity;
-        setParam('gridDensity', Math.floor(densityBase));
-
-        const morphBase = 1.0 + audioData.mid * this.reactivitySettings.midToMorph;
-        setParam('morphFactor', morphBase);
-
-        const chaosValue = 0.2 + audioData.high * this.reactivitySettings.highToChaos;
-        setParam('chaos', chaosValue);
-
-        const speedValue = 1.0 + audioData.energy * this.reactivitySettings.energyToSpeed;
-        setParam('speed', speedValue);
-
-        const intensityValue = 0.5 + audioData.energy * this.reactivitySettings.energyToIntensity;
-        setParam('intensity', intensityValue);
-
-        const saturationValue = 0.7 + audioData.bass * 0.3;
-        setParam('saturation', saturationValue);
-
-        // Reactive hue shifting based on frequencies
-        const currentTime = this.audio.currentTime;
-        const hueShift = (audioData.mid * 60 + audioData.high * 30) % 360;
-        setParam('hue', (currentTime * 5 + hueShift) % 360);
-
-        // Reactive 4D rotations
-        setParam('rot4dXW', Math.sin(currentTime * 0.5 + audioData.bass * Math.PI) * Math.PI);
-        setParam('rot4dYW', Math.cos(currentTime * 0.3 + audioData.mid * Math.PI) * Math.PI);
-        setParam('rot4dZW', Math.sin(currentTime * 0.7 + audioData.high * Math.PI) * Math.PI);
-    }
-
-    /**
-     * CHOREOGRAPHED MODE: Timeline-based choreography with FULL audio reactivity
-     * Choreography controls: system switching, geometry changes, base parameters
-     * Audio reactivity: ALWAYS active, overlays on choreographed parameters
-     */
-    applyChoreography(audioData) {
-        const currentTime = this.audio.currentTime;
-
-        // Find active sequence
-        const activeSequence = this.sequences.find(seq =>
-            currentTime >= seq.time && currentTime < seq.time + seq.duration
-        );
-
-        if (!activeSequence) return;
-
-        const effects = activeSequence.effects;
-
-        const setParam = (param, value) => {
-            if (this.currentEngine.parameterManager) {
-                this.currentEngine.parameterManager.setParameter(param, value);
-            } else if (this.currentEngine.updateParameter) {
-                this.currentEngine.updateParameter(param, value);
-            } else if (this.currentEngine.updateParameters) {
-                this.currentEngine.updateParameters({ [param]: value });
-            }
-        };
-
-        // CHECK FOR SYSTEM SWITCH (if sequence specifies a different system)
-        if (effects.system && effects.system !== this.currentSystem) {
-            console.log(`🎬 Choreography: Switching to ${effects.system} system at ${currentTime.toFixed(1)}s`);
-            this.switchSystem(effects.system);
-        }
-
-        // Geometry choreography
-        if (effects.geometry === 'cycle') {
-            const geomIndex = Math.floor((currentTime - activeSequence.time) / 2) % 9;
-            setParam('geometry', geomIndex);
-        } else if (effects.geometry === 'random' && audioData.energy > 0.6) {
-            const geomIndex = Math.floor(Math.random() * 9);
-            setParam('geometry', geomIndex);
-        } else if (effects.geometry === 'explosive' && Math.random() < 0.1) {
-            const geomIndex = Math.floor(Math.random() * 9);
-            setParam('geometry', geomIndex);
-        }
-
-        // Rotation choreography (WITH audio overlay)
-        if (effects.rotation === 'chaos') {
-            setParam('rot4dXW', Math.sin(currentTime * 2) * Math.PI * audioData.bass);
-            setParam('rot4dYW', Math.cos(currentTime * 1.5) * Math.PI * audioData.mid);
-            setParam('rot4dZW', Math.sin(currentTime * 3) * Math.PI * audioData.high);
-        } else if (effects.rotation === 'smooth') {
-            // Base smooth rotation + audio influence
-            setParam('rot4dXW', Math.sin(currentTime * 0.5 + audioData.bass * 2) * Math.PI);
-            setParam('rot4dYW', Math.cos(currentTime * 0.3 + audioData.mid * 2) * Math.PI);
-            setParam('rot4dZW', Math.sin(currentTime * 0.4 + audioData.high * 2) * Math.PI * 0.5);
-        } else if (effects.rotation === 'extreme') {
-            setParam('rot4dXW', Math.sin(currentTime * 5) * Math.PI * (1 + audioData.energy));
-            setParam('rot4dYW', Math.cos(currentTime * 4) * Math.PI * (1 + audioData.bass));
-            setParam('rot4dZW', Math.sin(currentTime * 6) * Math.PI * (1 + audioData.high));
-        } else if (effects.rotation === 'accelerate') {
-            const accel = (currentTime - activeSequence.time) / activeSequence.duration;
-            setParam('rot4dXW', Math.sin(currentTime * (0.5 + accel * 2 + audioData.bass)) * Math.PI);
-            setParam('rot4dYW', Math.cos(currentTime * (0.3 + accel * 1.5 + audioData.mid)) * Math.PI);
-        } else if (effects.rotation === 'minimal') {
-            // Minimal rotation BUT still audio reactive
-            setParam('rot4dXW', audioData.bass * Math.PI * 0.3);
-            setParam('rot4dYW', audioData.mid * Math.PI * 0.3);
-            setParam('rot4dZW', audioData.high * Math.PI * 0.2);
-        }
-
-        // AUDIO REACTIVITY ALWAYS ACTIVE - overlays on choreographed base values
-
-        // Chaos: Base from sequence + audio boost
-        const chaosBase = effects.chaos || 0.5;
-        setParam('chaos', chaosBase + audioData.energy * 0.4);
-
-        // Speed: Base from sequence + audio multiplier
-        const speedBase = effects.speed || 1.0;
-        setParam('speed', speedBase * (1 + audioData.energy * 0.6));
-
-        // Morph Factor: Audio-reactive morphing
-        const morphBase = effects.rotation === 'chaos' ? 1.5 : 1.0;
-        setParam('morphFactor', morphBase + audioData.mid * 0.7);
-
-        // Grid Density: ALWAYS audio-reactive
-        const densityBase = 15 + (effects.densityBoost || 0);
-        setParam('gridDensity', Math.floor(densityBase + audioData.bass * 35));
-
-        // Color shifting: Choreographed pattern + audio modulation
-        let hueValue = 0;
-        if (effects.colorShift === 'rainbow') {
-            hueValue = (currentTime * 60 + audioData.energy * 60) % 360;
-        } else if (effects.colorShift === 'fast') {
-            hueValue = (currentTime * 30 + audioData.bass * 120) % 360;
-        } else if (effects.colorShift === 'medium') {
-            hueValue = (currentTime * 10 + audioData.mid * 60) % 360;
-        } else if (effects.colorShift === 'slow') {
-            hueValue = (currentTime * 5 + audioData.high * 30) % 360;
-        } else if (effects.colorShift === 'freeze') {
-            // Even "freeze" gets audio modulation
-            hueValue = (effects.baseHue || 180) + audioData.energy * 30;
-        }
-        setParam('hue', hueValue % 360);
-
-        // Intensity & Saturation: ALWAYS audio-reactive
-        setParam('intensity', 0.5 + audioData.energy * 0.5);
-        setParam('saturation', 0.7 + audioData.bass * 0.3);
-
-        // ENABLE BUILT-IN AUDIO REACTIVITY for engines that have it
         if (this.currentEngine && this.currentEngine.audioEnabled !== undefined) {
             this.currentEngine.audioEnabled = true;
         }
     }
 
+    applyChoreography(audioData, context) {
+        const currentTime = context.time;
+        const activeSequence = this.sequences.find(
+            (seq) => currentTime >= seq.time && currentTime < seq.time + seq.duration
+        );
+
+        if (!activeSequence) {
+            this.applyReactiveMode(audioData, context);
+            return;
+        }
+
+        const effects = activeSequence.effects || {};
+
+        if (effects.system && effects.system !== this.currentSystem) {
+            this.switchSystem(effects.system);
+        }
+
+        const baseParams = {};
+        const geometryIndex = this.resolveGeometryIndex(effects.geometry, currentTime, activeSequence, audioData);
+        if (geometryIndex !== null) {
+            baseParams.geometry = geometryIndex;
+        }
+
+        const frameContext = {
+            ...context,
+            sequence: effects,
+            geometryIndex: this.geometryState.index
+        };
+
+        const reactiveParams = this.reactivityController.compute(audioData, frameContext);
+        const combinedParams = { ...baseParams, ...reactiveParams };
+
+        this.applyParameters(combinedParams);
+
+        if (this.currentEngine && this.currentEngine.audioEnabled !== undefined) {
+            this.currentEngine.audioEnabled = true;
+        }
+    }
+
+    resolveGeometryIndex(mode, currentTime, sequence, audioData) {
+        if (!mode) {
+            return this.geometryState.index;
+        }
+
+        const now = performance.now();
+
+        if (mode === 'cycle') {
+            const cycleDuration = Math.max(sequence.duration, 1);
+            const progress = (currentTime - sequence.time) / cycleDuration;
+            const index = Math.floor(progress * GEOMETRY_VARIATIONS) % GEOMETRY_VARIATIONS;
+            this.geometryState.index = index;
+            return index;
+        }
+
+        if (mode === 'morph') {
+            const index = Math.floor((currentTime * 0.5) % GEOMETRY_VARIATIONS);
+            this.geometryState.index = index;
+            return index;
+        }
+
+        if (mode === 'random') {
+            if (audioData.energy > 0.55 && now - this.geometryState.lastChange > 500) {
+                this.geometryState.index = Math.floor(Math.random() * GEOMETRY_VARIATIONS);
+                this.geometryState.lastChange = now;
+            }
+            return this.geometryState.index;
+        }
+
+        if (mode === 'explosive') {
+            if ((audioData.transient > 0.35 || audioData.bass > 0.75) && now - this.geometryState.lastChange > 300) {
+                this.geometryState.index = Math.floor(Math.random() * GEOMETRY_VARIATIONS);
+                this.geometryState.lastChange = now;
+            }
+            return this.geometryState.index;
+        }
+
+        if (mode === 'hold') {
+            return this.geometryState.index;
+        }
+
+        return this.geometryState.index;
+    }
+
     updateTimeline() {
+        if (!this.dom.timelineProgress) return;
+        if (!this.audio.duration) {
+            this.dom.timelineProgress.style.width = '0%';
+            return;
+        }
         const progress = (this.audio.currentTime / this.audio.duration) * 100;
-        document.getElementById('timeline-progress').style.width = progress + '%';
+        this.dom.timelineProgress.style.width = `${progress}%`;
     }
 
     updateInfoPanel(audioData) {
-        document.getElementById('beat-info').textContent = `BPM: ${this.detectedBPM} | Threshold: ${this.beatThreshold}`;
-        document.getElementById('energy-info').textContent = `Energy: ${(audioData.energy * 100).toFixed(0)}% | Bass: ${(audioData.bass * 100).toFixed(0)}%`;
+        if (this.dom.beatInfo) {
+            this.dom.beatInfo.textContent = `BPM: ${this.detectedBPM || '--'} | Beat Momentum: ${(this.reactivityController.getBeatMomentum() * 100).toFixed(0)}%`;
+        }
+        if (this.dom.energyInfo) {
+            this.dom.energyInfo.textContent = `Energy: ${(audioData.energy * 100).toFixed(0)}% | Bass: ${(audioData.bass * 100).toFixed(0)}% | Bright: ${(audioData.brightness * 100).toFixed(0)}%`;
+        }
+        if (this.dom.spectralInfo) {
+            this.dom.spectralInfo.textContent = `Tilt: ${(audioData.spectralTilt * 100).toFixed(1)} | Transient: ${(audioData.transient * 100).toFixed(0)}%`;
+        }
+        if (this.dom.reactivityInfo) {
+            const vector = this.reactivityController.getLiveVector();
+            const automationState = this.isAutomationPlaybackEnabled
+                ? `ON (${this.automationPlaybackMeta?.label ?? 'Automation'})`
+                : 'OFF';
+            const glideDisplay = Number.isFinite(this.automationPlaybackMeta?.glide)
+                ? this.automationPlaybackMeta.glide
+                : this.automationGlide;
+            this.dom.reactivityInfo.textContent = `Pad X: ${vector.x.toFixed(2)} | Y: ${vector.y.toFixed(2)} | Momentum: ${(audioData.momentum * 100).toFixed(0)}% | Automation: ${automationState} | Glide: ${glideDisplay.toFixed(2)}`;
+        }
     }
 
-    updateStatus(message) {
-        document.getElementById('status').textContent = message;
+    updateStatus(message, type = 'info') {
+        if (!this.statusManager) return;
+
+        switch (type) {
+            case 'success':
+                this.statusManager.success(message);
+                break;
+            case 'error':
+                this.statusManager.error(message);
+                break;
+            case 'warning':
+                this.statusManager.warning(message);
+                break;
+            case 'loading':
+                this.statusManager.loading(message);
+                break;
+            default:
+                this.statusManager.info(message);
+        }
     }
 
     exportChoreography() {
         const data = JSON.stringify(this.sequences, null, 2);
         const blob = new Blob([data], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = 'choreography.json';
-        a.click();
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = 'choreography.json';
+        link.click();
         URL.revokeObjectURL(url);
-        console.log('💾 Exported choreography');
+        this.updateStatus('Choreography exported', 'success');
     }
 
     importChoreography() {
         const input = document.createElement('input');
         input.type = 'file';
         input.accept = '.json';
-        input.onchange = (e) => {
-            const file = e.target.files[0];
+        input.onchange = (event) => {
+            const file = event.target.files?.[0];
+            if (!file) return;
             const reader = new FileReader();
-            reader.onload = (event) => {
+            reader.onload = (loadEvent) => {
                 try {
-                    this.sequences = JSON.parse(event.target.result);
-                    this.renderSequenceList();
-                    console.log('📂 Imported choreography');
+                    const sequences = JSON.parse(loadEvent.target.result);
+                    if (Array.isArray(sequences)) {
+                        this.sequences = sequences;
+                        this.renderSequenceList();
+                        this.updateStatus('Choreography imported', 'success');
+                    } else {
+                        throw new Error('Invalid choreography format');
+                    }
                 } catch (error) {
-                    console.error('Failed to import choreography:', error);
+                    console.error('Failed to import choreography', error);
+                    this.updateStatus('Failed to import choreography', 'error');
                 }
             };
             reader.readAsText(file);
