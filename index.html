@@ -6,6 +6,10 @@
     <title>VIB34D Music Video Choreographer - Dual Mode</title>
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
     <style>
+        :root {
+            color-scheme: dark;
+        }
+
         * {
             margin: 0;
             padding: 0;
@@ -17,6 +21,21 @@
             background: #000;
             color: #0ff;
             overflow: hidden;
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            *,
+            *::before,
+            *::after {
+                animation-duration: 0.01ms !important;
+                animation-iteration-count: 1 !important;
+                transition-duration: 0.01ms !important;
+                scroll-behavior: auto !important;
+            }
+
+            #controls {
+                transition: none;
+            }
         }
 
         #visualizer-container {
@@ -114,23 +133,225 @@
             transform: translateX(-50%);
             background: rgba(0, 0, 0, 0.9);
             border: 2px solid #0ff;
-            border-radius: 15px;
-            padding: 20px;
+            border-radius: 18px;
+            padding: 0;
             z-index: 1000;
             display: none;
             flex-direction: column;
-            gap: 15px;
-            min-width: 600px;
+            gap: 0;
+            width: min(900px, calc(100% - 40px));
+            --controls-max-height: 70vh;
+            --controls-mobile-max-height: 82vh;
+            max-height: var(--controls-max-height);
+            overflow: hidden;
+            box-shadow: 0 25px 70px rgba(0, 0, 0, 0.65);
+            transition: transform 0.3s ease, max-height 0.3s ease;
         }
 
         #controls.active {
             display: flex;
         }
 
+        #controls.is-collapsed {
+            max-height: 68px;
+        }
+
+        #controls.is-collapsed .controls-body {
+            display: none;
+        }
+
+        #controls.controls--mobile {
+            left: 0;
+            right: 0;
+            bottom: 0;
+            transform: none;
+            border-radius: 24px 24px 0 0;
+            width: 100%;
+            max-height: var(--controls-mobile-max-height);
+            padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 12px);
+        }
+
+        #controls.controls--mobile .controls-body {
+            padding: 16px;
+        }
+
+        #controls.controls--mobile .controls-header {
+            padding: 16px;
+        }
+
+        .controls-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 14px 18px;
+            border-bottom: 1px solid rgba(0, 255, 255, 0.2);
+            background: linear-gradient(135deg, rgba(0, 255, 255, 0.12), rgba(0, 0, 0, 0.6));
+            touch-action: pan-y;
+        }
+
+        .controls-header__grip {
+            width: 44px;
+            height: 6px;
+            border-radius: 3px;
+            background: rgba(0, 255, 255, 0.4);
+            box-shadow: 0 0 12px rgba(0, 255, 255, 0.4);
+            cursor: grab;
+        }
+
+        .controls-collapse-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            background: transparent;
+            border: none;
+            color: #0ff;
+            font-size: 13px;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            cursor: pointer;
+            text-transform: uppercase;
+            padding: 6px 0;
+            touch-action: manipulation;
+        }
+
+        .controls-collapse-btn:focus-visible {
+            outline: 2px solid rgba(0, 255, 255, 0.7);
+            outline-offset: 2px;
+        }
+
+        .controls-collapse-btn__icon {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            border: 1px solid rgba(0, 255, 255, 0.4);
+            background: rgba(0, 0, 0, 0.55);
+            font-size: 12px;
+            transition: transform 0.3s ease;
+        }
+
+        .controls-collapse-btn__label {
+            font-size: 12px;
+            letter-spacing: 0.12em;
+        }
+
+        #controls.is-collapsed .controls-collapse-btn__icon {
+            transform: rotate(-90deg);
+        }
+
+        .controls-header__hint {
+            display: none;
+            font-size: 10px;
+            text-transform: uppercase;
+            color: rgba(144, 255, 255, 0.7);
+            letter-spacing: 0.12em;
+        }
+
+        .controls-body {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            padding: 18px;
+            overflow-y: auto;
+            overscroll-behavior: contain;
+            -webkit-overflow-scrolling: touch;
+            scrollbar-gutter: stable;
+            scroll-padding-top: 82px;
+        }
+
+        .control-panel-nav {
+            position: sticky;
+            top: 0;
+            z-index: 12;
+            display: flex;
+            gap: 10px;
+            padding: 12px 10px 10px;
+            margin: -6px -12px 8px;
+            border-bottom: 1px solid rgba(0, 255, 255, 0.14);
+            background: linear-gradient(180deg, rgba(0, 0, 0, 0.92) 0%, rgba(0, 0, 0, 0.78) 65%, rgba(0, 0, 0, 0));
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            overflow-x: auto;
+            overscroll-behavior-x: contain;
+            scrollbar-width: thin;
+            scrollbar-color: rgba(0, 255, 255, 0.4) transparent;
+            border-radius: 12px 12px 0 0;
+        }
+
+        .control-panel-nav::-webkit-scrollbar {
+            height: 6px;
+        }
+
+        .control-panel-nav::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .control-panel-nav::-webkit-scrollbar-thumb {
+            background: rgba(0, 255, 255, 0.35);
+            border-radius: 999px;
+        }
+
+        .control-panel-nav__btn {
+            flex: 0 0 auto;
+            min-width: 138px;
+            padding: 10px 18px;
+            font-size: 12px;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            background: linear-gradient(135deg, rgba(0, 255, 255, 0.08), rgba(0, 0, 0, 0.8));
+            color: rgba(144, 255, 255, 0.88);
+            border: 1px solid rgba(0, 255, 255, 0.18);
+            border-radius: 999px;
+            cursor: pointer;
+            transition: border-color 0.25s ease, box-shadow 0.25s ease, color 0.25s ease, transform 0.25s ease;
+            box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.45);
+        }
+
+        .control-panel-nav__btn:hover,
+        .control-panel-nav__btn:focus-visible {
+            color: #0ff;
+            border-color: rgba(0, 255, 255, 0.5);
+            box-shadow: 0 0 16px rgba(0, 255, 255, 0.35);
+            transform: translateY(-1px);
+            outline: none;
+        }
+
+        .control-panel-nav__btn.is-active {
+            color: #000;
+            background: linear-gradient(135deg, #0a4d68, #0ff);
+            border-color: rgba(0, 255, 255, 0.85);
+            box-shadow: 0 0 22px rgba(0, 255, 255, 0.45);
+        }
+
+        .control-panel-nav__btn[aria-expanded="false"]::after {
+            content: ' ▸';
+            font-size: 12px;
+            opacity: 0.72;
+        }
+
+        .control-panel-nav__btn[aria-expanded="true"]::after {
+            content: ' ▾';
+            font-size: 12px;
+            opacity: 0.72;
+        }
+
+        .control-panel-nav__btn:focus-visible {
+            outline: 2px solid rgba(255, 255, 255, 0.4);
+            outline-offset: 2px;
+        }
+
         .control-row {
             display: flex;
             gap: 10px;
             align-items: center;
+        }
+
+        .control-row.reactivity-row {
+            align-items: stretch;
+            gap: 20px;
         }
 
         button {
@@ -159,6 +380,13 @@
         button:disabled {
             opacity: 0.5;
             cursor: not-allowed;
+        }
+
+        button.recording,
+        button.recording:hover {
+            background: linear-gradient(135deg, #7a0000, #ff3b3b);
+            color: #fff;
+            box-shadow: 0 0 20px #ff3b3b;
         }
 
         .file-input-label {
@@ -195,6 +423,893 @@
             border-radius: 4px;
             width: 0%;
             transition: width 0.1s linear;
+        }
+
+        .xy-pad {
+            position: relative;
+            width: 200px;
+            height: 200px;
+            border: 2px solid rgba(0, 255, 255, 0.6);
+            border-radius: 14px;
+            background: radial-gradient(circle at center, rgba(0, 255, 255, 0.08), rgba(0, 0, 0, 0.6));
+            box-shadow: inset 0 0 25px rgba(0, 255, 255, 0.2);
+            cursor: crosshair;
+        }
+
+        .xy-pad::before,
+        .xy-pad::after {
+            content: '';
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            transform: translate(-50%, -50%);
+            border-radius: 12px;
+        }
+
+        .xy-pad::before {
+            background:
+                linear-gradient(rgba(0, 255, 255, 0.15) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0, 255, 255, 0.15) 1px, transparent 1px);
+            background-size: 20px 20px;
+        }
+
+        .xy-pad::after {
+            border: 1px solid rgba(0, 255, 255, 0.3);
+        }
+
+        .xy-pad__handle {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            border: 2px solid #0ff;
+            background: radial-gradient(circle at center, #0ff, rgba(0, 0, 0, 0.1));
+            box-shadow: 0 0 20px rgba(0, 255, 255, 0.6);
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+        }
+
+        .xy-pad--ready {
+            outline: none;
+        }
+
+        .xy-pad--ready:focus {
+            box-shadow: 0 0 20px rgba(0, 255, 255, 0.6);
+        }
+
+        .reactivity-panel {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            background: rgba(0, 255, 255, 0.05);
+            border: 1px solid rgba(0, 255, 255, 0.2);
+            border-radius: 12px;
+            padding: 15px;
+        }
+
+        .reactivity-panel h4 {
+            font-size: 13px;
+            color: #0ff;
+        }
+
+        .reactivity-panel p {
+            font-size: 11px;
+            color: #8ad4ff;
+            line-height: 1.4;
+        }
+
+        .reactivity-readout {
+            display: flex;
+            gap: 15px;
+            font-size: 12px;
+            color: #0ff;
+        }
+
+        .axis-locks {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .axis-lock-btn,
+        .reset-pad-btn {
+            flex: 1 1 100px;
+            background: rgba(0, 255, 255, 0.12);
+            border: 1px solid rgba(0, 255, 255, 0.35);
+            color: #0ff;
+            font-size: 11px;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            padding: 8px 10px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .axis-lock-btn:hover,
+        .reset-pad-btn:hover {
+            background: rgba(0, 255, 255, 0.22);
+            box-shadow: 0 0 14px rgba(0, 255, 255, 0.35);
+        }
+
+        .axis-lock-btn.active {
+            background: linear-gradient(135deg, rgba(0, 255, 255, 0.85), rgba(0, 128, 255, 0.85));
+            color: #001018;
+            border-color: transparent;
+            box-shadow: 0 0 20px rgba(0, 255, 255, 0.7);
+        }
+
+        .reactivity-telemetry {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: 12px;
+            padding: 12px;
+            border: 1px solid rgba(0, 255, 255, 0.18);
+            border-radius: 10px;
+            background: rgba(0, 0, 0, 0.35);
+        }
+
+        .telemetry-section h5 {
+            font-size: 11px;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: #7fffd4;
+            margin-bottom: 6px;
+        }
+
+        .telemetry-list {
+            list-style: none;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .telemetry-item {
+            display: flex;
+            justify-content: space-between;
+            font-size: 11px;
+            font-variant-numeric: tabular-nums;
+            color: #9ff;
+        }
+
+        .telemetry-item .telemetry-label {
+            opacity: 0.7;
+        }
+
+        .telemetry-item .telemetry-value {
+            color: #fff;
+            font-weight: 700;
+        }
+
+        .telemetry-item.is-disabled .telemetry-value,
+        .telemetry-item.is-disabled .telemetry-label {
+            color: rgba(255, 255, 255, 0.45);
+        }
+
+        .modulator-controls {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            padding: 14px;
+            border-radius: 10px;
+            border: 1px solid rgba(0, 255, 255, 0.18);
+            background: rgba(0, 0, 0, 0.35);
+        }
+
+        .scene-lab {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            padding: 14px;
+            border-radius: 10px;
+            border: 1px solid rgba(0, 255, 255, 0.18);
+            background: rgba(0, 0, 0, 0.35);
+        }
+
+        .scene-lab__header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .scene-lab__header h5 {
+            margin: 0;
+            font-size: 12px;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            color: #7fffd4;
+        }
+
+        .scene-lab__actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .scene-lab__actions button {
+            font-size: 11px;
+            padding: 8px 14px;
+        }
+
+        .scene-lab__actions--secondary {
+            flex-wrap: wrap;
+        }
+
+        .scene-lab__actions--secondary button {
+            flex: 1 1 30%;
+            min-width: 120px;
+            font-size: 10px;
+            padding: 6px 10px;
+        }
+
+        .scene-lab__crossfade {
+            display: grid;
+            grid-template-columns: auto 1fr 60px;
+            align-items: center;
+            gap: 10px;
+            font-size: 11px;
+            color: #8ad4ff;
+        }
+
+        .scene-lab__crossfade label {
+            font-weight: 700;
+            letter-spacing: 0.06em;
+        }
+
+        .scene-lab__crossfade input[type="range"] {
+            width: 100%;
+            accent-color: #0ff;
+        }
+
+        .scene-lab__crossfade span {
+            text-align: right;
+            font-weight: 600;
+            color: #0ff;
+        }
+
+        .scene-lab__list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            max-height: 260px;
+            overflow-y: auto;
+        }
+
+        .scene-lab__empty {
+            padding: 12px;
+            font-size: 11px;
+            letter-spacing: 0.05em;
+            color: rgba(255, 255, 255, 0.6);
+            border: 1px dashed rgba(0, 255, 255, 0.25);
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .scene-card {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            padding: 12px;
+            border-radius: 10px;
+            border: 1px solid rgba(0, 255, 255, 0.16);
+            background: rgba(0, 0, 0, 0.45);
+            transition: border-color 0.2s ease, box-shadow 0.2s ease;
+            cursor: pointer;
+        }
+
+        .scene-card--selected {
+            border-color: rgba(0, 255, 255, 0.55);
+            box-shadow: 0 0 18px rgba(0, 255, 255, 0.3);
+        }
+
+        .scene-card__header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .scene-card__title {
+            font-size: 12px;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: #0ff;
+        }
+
+        .scene-card__hotkey {
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            padding: 2px 6px;
+            border-radius: 6px;
+            background: rgba(0, 255, 255, 0.12);
+            color: #7fffd4;
+        }
+
+        .scene-card__timestamp {
+            font-size: 10px;
+            color: rgba(255, 255, 255, 0.55);
+            margin-left: auto;
+        }
+
+        .scene-card__meta {
+            font-size: 11px;
+            color: rgba(255, 255, 255, 0.65);
+            letter-spacing: 0.05em;
+        }
+
+        .scene-card__actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+
+        .scene-card__action {
+            flex: 1 1 auto;
+            min-width: 90px;
+            font-size: 10px;
+            padding: 6px 8px;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+        }
+
+        .scene-card__action--launch {
+            background: linear-gradient(135deg, rgba(0, 128, 255, 0.85), rgba(0, 255, 255, 0.85));
+            color: #00131f;
+        }
+
+        .scene-card__action--move {
+            flex: 0 0 auto;
+            min-width: 38px;
+        }
+
+        .scene-lab__footer {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 10px;
+        }
+
+        .scene-lab__hint {
+            flex: 1 1 auto;
+            color: rgba(255, 255, 255, 0.7);
+            letter-spacing: 0.05em;
+        }
+
+        .scene-lab__status {
+            flex: 0 0 auto;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+        }
+
+        .scene-lab__status[data-state="dirty"] {
+            color: #ffd166;
+        }
+
+        .scene-lab__status[data-state="saved"] {
+            color: #7fffd4;
+        }
+
+        .scene-lab__status[data-state="empty"] {
+            color: rgba(255, 255, 255, 0.6);
+        }
+
+        .scene-lab__status[data-state="unavailable"] {
+            color: #ff7b7b;
+        }
+
+        .modulator-controls__header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+        }
+
+        .modulator-controls__header h5 {
+            margin: 0;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: #7fffd4;
+        }
+
+        .modulator-resync-btn {
+            font-size: 11px;
+            padding: 6px 12px;
+            border-radius: 6px;
+            background: linear-gradient(135deg, rgba(0, 128, 255, 0.85), rgba(0, 255, 255, 0.85));
+            color: #00131f;
+            border: none;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+        }
+
+        .scene-timeline {
+            background: rgba(12, 18, 28, 0.7);
+            border: 1px solid rgba(0, 255, 255, 0.18);
+            border-radius: 12px;
+            padding: 16px;
+            margin-top: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .scene-timeline__header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+        }
+
+        .scene-timeline__header h5 {
+            margin: 0;
+            font-size: 14px;
+            letter-spacing: 0.05em;
+            color: #0ff;
+            text-transform: uppercase;
+        }
+
+        .scene-timeline__actions {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .scene-timeline__actions button {
+            font-size: 11px;
+            padding: 6px 10px;
+            letter-spacing: 0.05em;
+        }
+
+        .scene-timeline__toolbar {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: flex-start;
+            gap: 12px;
+            font-size: 11px;
+            color: #7fa6c1;
+        }
+
+        .scene-timeline__toolbar-actions {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .scene-timeline__toolbar button {
+            font-size: 11px;
+            padding: 6px 10px;
+            letter-spacing: 0.05em;
+        }
+
+        .scene-timeline__grid-controls {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: flex-end;
+            gap: 10px;
+        }
+
+        .scene-timeline__grid-controls label {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            font-size: 10px;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: #9fc9ff;
+        }
+
+        .scene-timeline__grid-controls input,
+        .scene-timeline__grid-controls select {
+            min-width: 72px;
+            background: rgba(10, 20, 32, 0.85);
+            border: 1px solid rgba(0, 255, 255, 0.2);
+            border-radius: 6px;
+            color: #e5faff;
+            padding: 6px 8px;
+            font-size: 12px;
+            font-family: 'Inter', 'Segoe UI', sans-serif;
+        }
+
+        .scene-timeline__grid-controls input:focus,
+        .scene-timeline__grid-controls select:focus {
+            outline: none;
+            border-color: rgba(0, 255, 255, 0.45);
+            box-shadow: 0 0 0 1px rgba(0, 255, 255, 0.25);
+        }
+
+        .scene-timeline__hint {
+            opacity: 0.7;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+        }
+
+        .scene-timeline__hint--status {
+            color: #9fe7ff;
+            opacity: 0.9;
+        }
+
+        .scene-timeline__toggle {
+            background: rgba(0, 255, 255, 0.08);
+            border: 1px solid rgba(0, 255, 255, 0.25);
+            color: #0ff;
+            border-radius: 4px;
+            transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+        }
+
+        .scene-timeline__toggle--active {
+            background: rgba(0, 255, 255, 0.2);
+            border-color: rgba(0, 255, 255, 0.45);
+            color: #fff;
+            box-shadow: 0 0 0 1px rgba(0, 255, 255, 0.25);
+        }
+
+        .scene-timeline__list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            max-height: 280px;
+            overflow-y: auto;
+            padding-right: 4px;
+        }
+
+        .scene-timeline__empty {
+            padding: 14px;
+            border-radius: 8px;
+            border: 1px dashed rgba(0, 255, 255, 0.25);
+            color: rgba(255, 255, 255, 0.65);
+            font-size: 11px;
+            letter-spacing: 0.05em;
+            background: rgba(6, 14, 24, 0.7);
+        }
+
+        .scene-timeline__item {
+            background: rgba(8, 12, 22, 0.72);
+            border: 1px solid rgba(0, 255, 255, 0.18);
+            border-radius: 10px;
+            padding: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            position: relative;
+        }
+
+        .scene-timeline__item--upcoming {
+            border-color: rgba(0, 255, 255, 0.6);
+            box-shadow: 0 0 0 1px rgba(0, 255, 255, 0.25);
+        }
+
+        .scene-timeline__item--triggered {
+            border-color: rgba(80, 150, 255, 0.35);
+            opacity: 0.75;
+        }
+
+        .scene-timeline__item--missing {
+            border-color: rgba(255, 70, 90, 0.5);
+            background: rgba(32, 4, 8, 0.7);
+        }
+
+        .scene-timeline__item-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            font-size: 11px;
+            color: #9fe7ff;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+        }
+
+        .scene-timeline__item-time {
+            font-family: 'Orbitron', monospace;
+            color: #6cd1ff;
+        }
+
+        .scene-timeline__item-fields {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 10px;
+            font-size: 11px;
+        }
+
+        .scene-timeline__item-fields label {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            color: #7fa6c1;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            font-size: 10px;
+        }
+
+        .scene-timeline__item-fields input,
+        .scene-timeline__item-fields select,
+        .scene-timeline__item-fields textarea {
+            background: #050b15;
+            border: 1px solid rgba(0, 255, 255, 0.2);
+            border-radius: 4px;
+            padding: 6px;
+            color: #0ff;
+            font-family: 'Orbitron', monospace;
+            font-size: 11px;
+        }
+
+        .scene-timeline__item-fields textarea {
+            min-height: 50px;
+            resize: vertical;
+            grid-column: span 2;
+            font-family: 'Space Grotesk', sans-serif;
+            color: #9bd4ff;
+        }
+
+        .scene-timeline__item-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .scene-timeline__item-actions button {
+            background: rgba(0, 255, 255, 0.08);
+            border: 1px solid rgba(0, 255, 255, 0.25);
+            color: #0ff;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            padding: 6px 10px;
+            border-radius: 4px;
+        }
+
+        .scene-timeline__item-actions button:hover {
+            background: rgba(0, 255, 255, 0.16);
+            border-color: rgba(0, 255, 255, 0.4);
+        }
+
+        .scene-timeline__status {
+            font-size: 11px;
+            color: #7fa6c1;
+            background: rgba(4, 16, 28, 0.75);
+            border: 1px solid rgba(0, 255, 255, 0.18);
+            border-radius: 6px;
+            padding: 8px 10px;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+        }
+
+        .scene-timeline__status[data-state="armed"] {
+            color: #fff;
+            background: rgba(6, 48, 76, 0.85);
+            border-color: rgba(0, 255, 255, 0.4);
+        }
+
+        .scene-timeline__status[data-state="empty"] {
+            color: #8a94a6;
+            background: rgba(8, 12, 22, 0.8);
+            border-color: rgba(255, 255, 255, 0.05);
+        }
+
+        .modulator-control-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: 12px;
+        }
+
+        .modulator-card {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            padding: 12px;
+            border-radius: 10px;
+            border: 1px solid rgba(0, 255, 255, 0.16);
+            background: rgba(0, 0, 0, 0.45);
+            transition: border-color 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
+        }
+
+        .modulator-card--disabled {
+            opacity: 0.6;
+            border-color: rgba(255, 255, 255, 0.08);
+        }
+
+        .modulator-card__header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+        }
+
+        .modulator-card__title {
+            font-size: 12px;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: #0ff;
+        }
+
+        .modulator-card__toggle {
+            font-size: 11px;
+            padding: 6px 10px;
+            border-radius: 6px;
+            background: linear-gradient(135deg, rgba(0, 77, 104, 0.9), rgba(0, 255, 255, 0.9));
+            color: #001118;
+            border: none;
+            letter-spacing: 0.08em;
+            font-weight: 700;
+        }
+
+        .modulator-card--disabled .modulator-card__toggle {
+            background: linear-gradient(135deg, rgba(20, 20, 20, 0.9), rgba(70, 70, 70, 0.9));
+            color: #ccc;
+        }
+
+        .modulator-card__meta {
+            font-size: 11px;
+            color: rgba(255, 255, 255, 0.6);
+            letter-spacing: 0.06em;
+        }
+
+        .modulator-card__body {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .modulator-slider {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+        }
+
+        .modulator-slider__label {
+            color: rgba(255, 255, 255, 0.55);
+        }
+
+        .modulator-slider__input {
+            width: 100%;
+            accent-color: #0ff;
+        }
+
+        .modulator-slider__value {
+            text-align: right;
+            font-size: 12px;
+            font-weight: 600;
+            color: #fff;
+        }
+
+        .reactivity-buttons {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 10px;
+        }
+
+        .reactivity-buttons button {
+            width: 100%;
+        }
+
+        .automation-controls {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .panel-section {
+            background: rgba(0, 0, 0, 0.35);
+            border: 1px solid rgba(0, 255, 255, 0.18);
+            border-radius: 10px;
+            padding: 0;
+            overflow: hidden;
+            scroll-margin-top: 72px;
+        }
+
+        .panel-section summary {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 12px 16px;
+            cursor: pointer;
+            list-style: none;
+            color: #7fffd4;
+            font-size: 12px;
+            font-weight: 600;
+            letter-spacing: 0.06em;
+            background: rgba(0, 0, 0, 0.25);
+        }
+
+        .panel-section summary::-webkit-details-marker {
+            display: none;
+        }
+
+        .panel-section summary::after {
+            content: '▾';
+            color: #0ff;
+            font-size: 12px;
+            transition: transform 0.2s ease;
+        }
+
+        .panel-section[open] summary {
+            background: rgba(0, 255, 255, 0.12);
+            box-shadow: inset 0 0 18px rgba(0, 255, 255, 0.15);
+        }
+
+        .panel-section[open] summary::after {
+            transform: rotate(180deg);
+        }
+
+        .panel-section__hint {
+            font-size: 10px;
+            color: rgba(144, 255, 255, 0.75);
+            letter-spacing: 0.08em;
+        }
+
+        .panel-section__content {
+            padding: 14px 16px 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+        }
+
+        .automation-advanced {
+            display: grid;
+            grid-template-columns: auto 1fr 50px;
+            align-items: center;
+            gap: 10px;
+            font-size: 11px;
+            color: #8ad4ff;
+        }
+
+        .automation-advanced label {
+            font-weight: 700;
+            letter-spacing: 0.05em;
+        }
+
+        .automation-advanced input[type="range"] {
+            width: 100%;
+            accent-color: #0ff;
+        }
+
+        .automation-advanced span {
+            text-align: right;
+            font-size: 12px;
+            color: #0ff;
+        }
+
+        .automation-snapshot {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 10px;
+            align-items: center;
+        }
+
+        .automation-snapshot button {
+            width: 100%;
+        }
+
+        .automation-snapshot-info {
+            grid-column: 1 / -1;
+            font-size: 11px;
+            color: #8ad4ff;
+        }
+
+        button.automation-active,
+        button.automation-active:hover {
+            background: linear-gradient(135deg, #064d7a, #0ff);
+            box-shadow: 0 0 24px rgba(0, 255, 255, 0.6);
+            color: #00181f;
         }
 
         #status {
@@ -360,8 +1475,151 @@
             }
 
             #controls {
-                min-width: 90%;
-                max-width: 90%;
+                width: calc(100% - 20px);
+                left: 50%;
+                transform: translateX(-50%);
+                bottom: 12px;
+                max-height: var(--controls-max-height);
+            }
+
+            #controls.controls--mobile {
+                bottom: 0;
+            }
+
+            .controls-header {
+                gap: 10px;
+            }
+
+            .controls-header__grip {
+                width: 60px;
+            }
+
+            .controls-header__hint {
+                display: inline-flex;
+                align-items: center;
+                gap: 6px;
+            }
+
+            .controls-collapse-btn__label {
+                font-size: 11px;
+            }
+
+            .controls-body button,
+            .panel-section summary {
+                min-height: 44px;
+            }
+
+            .control-panel-nav {
+                margin: -4px -8px 10px;
+                padding: 10px 8px 8px;
+                gap: 8px;
+                border-radius: 18px 18px 0 0;
+            }
+
+            .control-panel-nav__btn {
+                min-width: 122px;
+                font-size: 11px;
+                letter-spacing: 0.1em;
+                padding: 9px 14px;
+            }
+
+            .panel-section__content {
+                padding: 12px 14px 14px;
+            }
+
+            .control-row.reactivity-row {
+                flex-direction: column;
+            }
+
+            .xy-pad {
+                width: 100%;
+                height: 180px;
+            }
+
+            .modulator-control-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .modulator-resync-btn {
+                width: 100%;
+                text-align: center;
+            }
+
+            .scene-lab__actions {
+                flex-direction: column;
+                width: 100%;
+            }
+
+            .scene-lab__actions button {
+                width: 100%;
+            }
+
+            .scene-lab__actions--secondary {
+                width: 100%;
+            }
+
+            .scene-lab__actions--secondary button {
+                flex: 1 1 100%;
+                min-width: unset;
+            }
+
+            .scene-lab__footer {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+
+            .scene-lab__status {
+                width: 100%;
+            }
+
+            .scene-timeline {
+                padding: 14px;
+            }
+
+            .scene-timeline__actions {
+                width: 100%;
+                justify-content: flex-start;
+            }
+
+            .scene-timeline__actions button {
+                flex: 1 1 auto;
+            }
+
+            .scene-timeline__toolbar {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+
+            .scene-timeline__toolbar-actions,
+            .scene-timeline__grid-controls {
+                width: 100%;
+            }
+
+            .scene-timeline__grid-controls {
+                align-items: stretch;
+            }
+
+            .scene-timeline__grid-controls label,
+            .scene-timeline__grid-controls input,
+            .scene-timeline__grid-controls select,
+            .scene-timeline__grid-controls .scene-timeline__toggle {
+                width: 100%;
+            }
+
+            .scene-timeline__item-fields {
+                grid-template-columns: 1fr;
+            }
+
+            .scene-timeline__item-actions {
+                width: 100%;
+            }
+
+            .scene-timeline__item-actions button {
+                flex: 1 1 calc(50% - 4px);
+            }
+
+            .scene-timeline__status {
+                width: 100%;
             }
 
             #timeline-editor {
@@ -403,6 +1661,8 @@
         <p id="mode-description">Real-time audio analysis with automatic parameter mapping</p>
         <p id="beat-info">BPM: -- | Beat: --</p>
         <p id="energy-info">Energy: -- | Bass: --</p>
+        <p id="spectral-info">Tilt: -- | Transient: --</p>
+        <p id="reactivity-info">Pad X: 0.00 | Y: 0.00</p>
     </div>
 
     <!-- Timeline Editor for Choreography Mode -->
@@ -415,28 +1675,196 @@
     </div>
 
     <div id="controls">
-        <div class="control-row">
-            <label for="audio-file" class="file-input-label">
-                📁 Load Audio File
-            </label>
-            <input type="file" id="audio-file" accept="audio/*">
-            <button id="play-btn" disabled>▶ Play</button>
-            <button id="pause-btn" disabled>⏸ Pause</button>
-            <button id="stop-btn" disabled>⏹ Stop</button>
-            <button class="mode-toggle" onclick="toggleMode()">🔄 Switch Mode</button>
+        <div class="controls-header">
+            <div class="controls-header__grip" aria-hidden="true"></div>
+            <button id="controls-collapse-btn" class="controls-collapse-btn" type="button" aria-expanded="true"
+                aria-controls="control-panel-body">
+                <span class="controls-collapse-btn__icon" aria-hidden="true">▾</span>
+                <span class="controls-collapse-btn__label">Control Surface</span>
+            </button>
+            <span class="controls-header__hint">Tap to expand</span>
         </div>
+        <div id="control-panel-body" class="controls-body" role="region" aria-label="Visualizer control surface">
+            <nav id="control-panel-nav" class="control-panel-nav" aria-label="Control surface sections"></nav>
+            <div class="control-row">
+                <label for="audio-file" class="file-input-label">
+                    📁 Load Audio File
+                </label>
+                <input type="file" id="audio-file" accept="audio/*">
+                <button id="play-btn" disabled>▶ Play</button>
+                <button id="pause-btn" disabled>⏸ Pause</button>
+                <button id="stop-btn" disabled>⏹ Stop</button>
+                <button class="mode-toggle" onclick="toggleMode()">🔄 Switch Mode</button>
+            </div>
 
-        <div id="timeline">
-            <div id="timeline-progress"></div>
+            <div id="timeline">
+                <div id="timeline-progress"></div>
+            </div>
+
+            <div class="control-row reactivity-row">
+                <div class="xy-pad" id="reactivity-pad" aria-label="Live reactivity XY pad"></div>
+                <div class="reactivity-panel">
+                    <div class="reactivity-panel__intro">
+                        <h4>Live Reactivity Pad</h4>
+                        <p>Blend holographic intensity (X-axis) with chaos & dimensional depth (Y-axis). Perform live, capture automation, then replay or import precision curves on demand.</p>
+                        <div class="reactivity-readout">
+                            <span id="reactivity-readout-x">X: 0.00</span>
+                            <span id="reactivity-readout-y">Y: 0.00</span>
+                        </div>
+                        <div class="axis-locks">
+                            <button id="lock-axis-x" class="axis-lock-btn" aria-pressed="false">🔒 Lock X Axis</button>
+                            <button id="lock-axis-y" class="axis-lock-btn" aria-pressed="false">🔒 Lock Y Axis</button>
+                            <button id="reset-reactivity-btn" class="reset-pad-btn">🎯 Center Pad</button>
+                        </div>
+                    </div>
+                    <details class="panel-section" open data-section-key="telemetry">
+                        <summary>
+                            <span>📡 Telemetry</span>
+                            <span class="panel-section__hint">Monitor outputs & modulators</span>
+                        </summary>
+                        <div class="panel-section__content">
+                            <div class="reactivity-telemetry">
+                                <div class="telemetry-section">
+                                    <h5>Parameter Output</h5>
+                                    <ul id="reactivity-parameter-list" class="telemetry-list"></ul>
+                                </div>
+                                <div class="telemetry-section">
+                                    <h5>Modulators</h5>
+                                    <ul id="reactivity-modulator-list" class="telemetry-list"></ul>
+                                </div>
+                            </div>
+                        </div>
+                    </details>
+                    <details class="panel-section" open data-mobile-collapsed="true" data-section-key="automation">
+                        <summary>
+                            <span>🎚 Automation & Snapshots</span>
+                            <span class="panel-section__hint">Record, playback, and store XY motion</span>
+                        </summary>
+                        <div class="panel-section__content">
+                            <div class="reactivity-buttons">
+                                <button id="record-automation-btn">● Start Recording</button>
+                                <button id="automation-playback-btn" disabled aria-pressed="false">▶ Automation Playback</button>
+                                <button id="export-automation-btn" disabled>⬇ Export Automation</button>
+                                <button id="import-automation-btn">⬆ Import Automation</button>
+                            </div>
+                            <div class="automation-controls">
+                                <div class="automation-advanced">
+                                    <label for="automation-glide">Automation Glide</label>
+                                    <input type="range" id="automation-glide" min="0" max="0.95" step="0.05" value="0.28">
+                                    <span id="automation-glide-value">0.28</span>
+                                </div>
+                                <div class="automation-snapshot">
+                                    <button id="save-automation-snapshot-btn" disabled>💾 Save Snapshot</button>
+                                    <button id="load-automation-snapshot-btn" disabled>📂 Load Snapshot</button>
+                                    <div class="automation-snapshot-info" id="automation-snapshot-info">No snapshot saved</div>
+                                </div>
+                            </div>
+                        </div>
+                    </details>
+                    <details class="panel-section" open data-mobile-collapsed="true" data-section-key="modulators">
+                        <summary>
+                            <span>🧪 Modulator Lab</span>
+                            <span class="panel-section__hint">Blend LFOs, beat envelopes & noise</span>
+                        </summary>
+                        <div class="panel-section__content">
+                            <div class="modulator-controls">
+                                <div class="modulator-controls__header">
+                                    <h5>Modulator Lab</h5>
+                                    <button id="resync-modulators-btn" class="modulator-resync-btn">🔁 Resync to Beat</button>
+                                </div>
+                                <div id="modulator-control-grid" class="modulator-control-grid" aria-live="polite"></div>
+                            </div>
+                        </div>
+                    </details>
+                    <details class="panel-section" open data-mobile-collapsed="true" data-section-key="scene-lab">
+                        <summary>
+                            <span>🎬 Scene Lab</span>
+                            <span class="panel-section__hint">Capture & launch immersive mixes</span>
+                        </summary>
+                        <div class="panel-section__content">
+                            <div class="scene-lab">
+                                <div class="scene-lab__header">
+                                    <h5>Scene Lab</h5>
+                                    <div class="scene-lab__actions">
+                                        <button id="capture-scene-btn">📸 Capture Scene</button>
+                                        <button id="apply-scene-btn" disabled>🚀 Launch Scene</button>
+                                    </div>
+                                </div>
+                                <div class="scene-lab__actions scene-lab__actions--secondary">
+                                    <button id="save-scene-set-btn" disabled>💾 Save Set</button>
+                                    <button id="load-scene-set-btn" disabled>📥 Load Set</button>
+                                    <button id="clear-scene-set-btn" disabled>🧹 Clear Set</button>
+                                </div>
+                                <div class="scene-lab__crossfade">
+                                    <label for="scene-crossfade">Crossfade</label>
+                                    <input type="range" id="scene-crossfade" min="0" max="6" step="0.1" value="1.5">
+                                    <span id="scene-crossfade-value">1.5s</span>
+                                </div>
+                                <div id="scene-list" class="scene-lab__list" aria-live="polite"></div>
+                                <div class="scene-lab__footer">
+                                    <div id="scene-hotkey-hint" class="scene-lab__hint">Capture scenes to unlock hotkeys (1-9).</div>
+                                    <div id="scene-storage-status" class="scene-lab__status" data-state="empty" aria-live="polite">No scenes yet</div>
+                                </div>
+                            </div>
+                        </div>
+                    </details>
+                    <details class="panel-section" open data-mobile-collapsed="true" data-section-key="timeline">
+                        <summary>
+                            <span>🗺 Performance Timeline</span>
+                            <span class="panel-section__hint">Sequence and quantize scene cues</span>
+                        </summary>
+                        <div class="panel-section__content">
+                            <div class="scene-timeline" id="scene-timeline">
+                                <div class="scene-timeline__header">
+                                    <h5>Performance Timeline</h5>
+                                    <div class="scene-timeline__actions">
+                                        <button id="timeline-arm-btn" class="scene-timeline__toggle" disabled aria-pressed="false">🎯 Arm Timeline</button>
+                                        <button id="timeline-follow-btn" class="scene-timeline__toggle scene-timeline__toggle--active" aria-pressed="true">⏱ Follow Playhead</button>
+                                        <button id="timeline-loop-btn" class="scene-timeline__toggle" aria-pressed="false">🔁 Loop</button>
+                                    </div>
+                                </div>
+                                <div class="scene-timeline__toolbar">
+                                    <div class="scene-timeline__toolbar-actions">
+                                        <button id="timeline-add-cue-btn" disabled>➕ Add Cue</button>
+                                        <button id="timeline-clear-btn" class="scene-timeline__toggle" disabled>🧹 Clear Cues</button>
+                                        <button id="timeline-quantize-btn" disabled>🪄 Quantize Grid</button>
+                                    </div>
+                                    <div class="scene-timeline__grid-controls">
+                                        <label for="timeline-bpm-input">Tempo
+                                            <input id="timeline-bpm-input" type="number" min="40" max="240" step="1" placeholder="Auto"
+                                                inputmode="numeric">
+                                        </label>
+                                        <label for="timeline-grid-select">Division
+                                            <select id="timeline-grid-select">
+                                                <option value="0.5">2 Beats</option>
+                                                <option value="1" selected>1 Beat</option>
+                                                <option value="2">1/2 Beat</option>
+                                                <option value="4">1/4 Beat</option>
+                                            </select>
+                                        </label>
+                                        <button id="timeline-snap-btn" class="scene-timeline__toggle scene-timeline__toggle--active"
+                                            aria-pressed="true">🎚 Beat Snap</button>
+                                    </div>
+                                    <span class="scene-timeline__hint">Cues launch scenes automatically as the track plays.</span>
+                                    <span id="timeline-beat-hint" class="scene-timeline__hint scene-timeline__hint--status">Beat snap uses
+                                        detected tempo when available.</span>
+                                </div>
+                                <div id="scene-timeline-list" class="scene-timeline__list" aria-live="polite"></div>
+                                <div id="scene-timeline-status" class="scene-timeline__status" data-state="empty">Timeline idle</div>
+                            </div>
+                        </div>
+                    </details>
+                </div>
+            </div>
+
+            <div class="system-selector">
+                <button class="system-btn active" data-system="faceted">🔷 FACETED</button>
+                <button class="system-btn" data-system="quantum">🌌 QUANTUM</button>
+                <button class="system-btn" data-system="holographic">✨ HOLOGRAPHIC</button>
+            </div>
+
+            <div id="status">Select a mode to begin</div>
         </div>
-
-        <div class="system-selector">
-            <button class="system-btn active" data-system="faceted">🔷 FACETED</button>
-            <button class="system-btn" data-system="quantum">🌌 QUANTUM</button>
-            <button class="system-btn" data-system="holographic">✨ HOLOGRAPHIC</button>
-        </div>
-
-        <div id="status">Select a mode to begin</div>
     </div>
 
     <script type="module">
@@ -445,7 +1873,467 @@
         import { RealHolographicSystem } from './src/holograms/RealHolographicSystem.js';
 
         let choreographer = null;
+        let choreographerInitQueue = Promise.resolve();
         let currentMode = null;
+
+        const controlsElement = document.getElementById('controls');
+        const controlsHeader = document.querySelector('.controls-header');
+        const collapseButton = document.getElementById('controls-collapse-btn');
+        const controlsHeaderGrip = document.querySelector('.controls-header__grip');
+        const controlsHeaderHint = document.querySelector('.controls-header__hint');
+        const controlPanelBody = document.getElementById('control-panel-body');
+        const controlPanelNav = document.getElementById('control-panel-nav');
+        const panelSections = controlPanelBody
+            ? Array.from(controlPanelBody.querySelectorAll('.panel-section'))
+            : [];
+        const mobileQuery = window.matchMedia('(max-width: 768px)');
+        const reduceMotionQuery = window.matchMedia ? window.matchMedia('(prefers-reduced-motion: reduce)') : null;
+        const navButtonsByKey = new Map();
+        let activeNavKey = null;
+        let navObserver = null;
+        let navScrollFallbackCleanup = null;
+
+        function createScopedStorage(namespace) {
+            try {
+                const storage = window.localStorage;
+                const probeKey = `${namespace}::probe`;
+                storage.setItem(probeKey, '1');
+                storage.removeItem(probeKey);
+                return {
+                    get(key) {
+                        return storage.getItem(`${namespace}::${key}`);
+                    },
+                    set(key, value) {
+                        storage.setItem(`${namespace}::${key}`, value);
+                    },
+                    remove(key) {
+                        storage.removeItem(`${namespace}::${key}`);
+                    }
+                };
+            } catch (error) {
+                console.warn('Persistent panel state unavailable, continuing without storage.', error);
+                return null;
+            }
+        }
+
+        const storage = createScopedStorage('vib34d-control-panel');
+        const PANEL_STATE_KEY = 'collapsed';
+        const SECTION_STATE_KEY = 'section-state';
+
+        function loadPanelPreference() {
+            if (!storage) return null;
+            const value = storage.get(PANEL_STATE_KEY);
+            if (value === 'true') return true;
+            if (value === 'false') return false;
+            return null;
+        }
+
+        function persistPanelPreference(collapsed) {
+            if (!storage) return;
+            storage.set(PANEL_STATE_KEY, collapsed ? 'true' : 'false');
+        }
+
+        function loadSectionPreferences() {
+            if (!storage) return {};
+            try {
+                const raw = storage.get(SECTION_STATE_KEY);
+                if (!raw) return {};
+                const parsed = JSON.parse(raw);
+                return typeof parsed === 'object' && parsed ? parsed : {};
+            } catch (error) {
+                console.warn('Failed to read section preferences, resetting.', error);
+                storage.remove(SECTION_STATE_KEY);
+                return {};
+            }
+        }
+
+        let sectionStates = loadSectionPreferences();
+
+        function persistSectionPreferences() {
+            if (!storage) return;
+            storage.set(SECTION_STATE_KEY, JSON.stringify(sectionStates));
+        }
+
+        function deriveSectionLabel(section) {
+            const summary = section.querySelector('summary');
+            if (!summary) {
+                return (section.dataset.sectionKey || 'Section').replace(/[-_]+/g, ' ');
+            }
+
+            const clone = summary.cloneNode(true);
+            return clone.textContent.replace(/\s+/g, ' ').trim();
+        }
+
+        function syncNavButtonForSection(section) {
+            if (!section) return;
+            const key = section.dataset.sectionKey;
+            if (!key) return;
+            const navButton = navButtonsByKey.get(key);
+            if (!navButton) return;
+            navButton.setAttribute('aria-expanded', section.open ? 'true' : 'false');
+        }
+
+        function ensureNavButtonVisible(button) {
+            if (!button || !controlPanelNav) return;
+            if (typeof button.scrollIntoView === 'function') {
+                const prefersInstant = reduceMotionQuery && reduceMotionQuery.matches;
+                button.scrollIntoView({
+                    behavior: prefersInstant ? 'auto' : 'smooth',
+                    block: 'nearest',
+                    inline: 'center'
+                });
+            }
+        }
+
+        function setActiveNavTarget(key) {
+            if (!key || activeNavKey === key) return;
+
+            if (activeNavKey && navButtonsByKey.has(activeNavKey)) {
+                const previous = navButtonsByKey.get(activeNavKey);
+                previous.classList.remove('is-active');
+                previous.removeAttribute('aria-current');
+            }
+
+            activeNavKey = key;
+            const current = navButtonsByKey.get(key);
+            if (!current) return;
+            current.classList.add('is-active');
+            current.setAttribute('aria-current', 'true');
+            ensureNavButtonVisible(current);
+        }
+
+        function scrollSectionIntoView(section) {
+            if (!controlPanelBody || !section) return;
+            const navHeight = controlPanelNav ? controlPanelNav.offsetHeight : 0;
+            const targetOffset = Math.max(section.offsetTop - navHeight - 12, 0);
+            const prefersInstant = reduceMotionQuery && reduceMotionQuery.matches;
+            controlPanelBody.scrollTo({
+                top: targetOffset,
+                behavior: prefersInstant ? 'auto' : 'smooth'
+            });
+        }
+
+        function buildSectionNavigation() {
+            if (!controlPanelNav) return;
+
+            navButtonsByKey.clear();
+            controlPanelNav.textContent = '';
+
+            const fragment = document.createDocumentFragment();
+
+            panelSections.forEach(section => {
+                const key = section.dataset.sectionKey;
+                if (!key) return;
+
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.className = 'control-panel-nav__btn';
+                button.dataset.sectionTarget = key;
+                button.textContent = deriveSectionLabel(section);
+                button.setAttribute('aria-expanded', section.open ? 'true' : 'false');
+
+                button.addEventListener('click', () => {
+                    if (!section.open) {
+                        section.dataset.programmaticToggle = 'true';
+                        section.open = true;
+                        delete section.dataset.programmaticToggle;
+                        section.dataset.userToggled = 'true';
+                        sectionStates[key] = true;
+                        persistSectionPreferences();
+                    }
+
+                    syncNavButtonForSection(section);
+                    setActiveNavTarget(key);
+                    scrollSectionIntoView(section);
+                });
+
+                fragment.appendChild(button);
+                navButtonsByKey.set(key, button);
+            });
+
+            controlPanelNav.appendChild(fragment);
+
+            if (!activeNavKey && panelSections.length) {
+                const firstKey = panelSections[0].dataset.sectionKey;
+                if (firstKey) {
+                    setActiveNavTarget(firstKey);
+                }
+            }
+        }
+
+        buildSectionNavigation();
+
+        function setControlPanelState(collapsed, { userInitiated = false, persist = userInitiated } = {}) {
+            controlsElement.classList.toggle('is-collapsed', collapsed);
+            collapseButton.setAttribute('aria-expanded', String(!collapsed));
+
+            if (controlsHeaderHint) {
+                const isMobile = controlsElement.classList.contains('controls--mobile');
+                controlsHeaderHint.textContent = collapsed
+                    ? (isMobile ? 'Swipe up to expand' : 'Tap to expand')
+                    : 'Tap to collapse';
+            }
+
+            if (userInitiated) {
+                controlsElement.dataset.userCollapsed = collapsed ? 'true' : 'false';
+            }
+
+            if (persist) {
+                persistPanelPreference(collapsed);
+            }
+        }
+
+        function applySectionPreferences() {
+            panelSections.forEach(section => {
+                const key = section.dataset.sectionKey;
+                if (!key) return;
+
+                const stored = sectionStates[key];
+                if (typeof stored === 'boolean') {
+                    section.dataset.programmaticToggle = 'true';
+                    section.open = stored;
+                    delete section.dataset.programmaticToggle;
+                    section.dataset.userToggled = 'true';
+                }
+
+                syncNavButtonForSection(section);
+            });
+        }
+
+        function updatePanelHeights() {
+            const viewport = window.visualViewport || null;
+            const rawHeight = viewport ? viewport.height : window.innerHeight || document.documentElement.clientHeight;
+            const viewportOffset = viewport ? viewport.offsetTop : 0;
+            const usableHeight = Math.max(0, rawHeight - viewportOffset);
+            const referenceHeight = usableHeight || rawHeight || 0;
+            const desktopMax = Math.min(Math.max(referenceHeight - 140, 340), 860);
+            const mobileMax = Math.min(Math.max(referenceHeight - 96, 320), 920);
+            controlsElement.style.setProperty('--controls-max-height', `${desktopMax}px`);
+            controlsElement.style.setProperty('--controls-mobile-max-height', `${mobileMax}px`);
+        }
+
+        function applyMobileLayout() {
+            const isMobile = mobileQuery.matches;
+            controlsElement.classList.toggle('controls--mobile', isMobile);
+            const userPref = controlsElement.dataset.userCollapsed;
+
+            if (userPref == null) {
+                const storedPref = loadPanelPreference();
+                if (storedPref != null) {
+                    controlsElement.dataset.userCollapsed = storedPref ? 'true' : 'false';
+                    setControlPanelState(storedPref, { persist: false });
+                } else {
+                    setControlPanelState(isMobile);
+                }
+            } else {
+                setControlPanelState(userPref === 'true', { persist: false });
+            }
+
+            if (isMobile) {
+                panelSections.forEach(section => {
+                    if (section.dataset.mobileCollapsed === 'true' && section.dataset.userToggled !== 'true') {
+                        section.dataset.programmaticToggle = 'true';
+                        section.open = false;
+                        delete section.dataset.programmaticToggle;
+                    }
+                });
+            } else {
+                panelSections.forEach(section => {
+                    if (section.dataset.userToggled !== 'true') {
+                        section.dataset.programmaticToggle = 'true';
+                        section.open = true;
+                        delete section.dataset.programmaticToggle;
+                    }
+                });
+            }
+
+            panelSections.forEach(syncNavButtonForSection);
+        }
+
+        function throttle(fn, wait = 120) {
+            let timeout = null;
+            let pendingArgs = null;
+            return function throttled(...args) {
+                if (timeout) {
+                    pendingArgs = args;
+                    return;
+                }
+
+                fn.apply(this, args);
+                timeout = setTimeout(() => {
+                    timeout = null;
+                    if (pendingArgs) {
+                        fn.apply(this, pendingArgs);
+                        pendingArgs = null;
+                    }
+                }, wait);
+            };
+        }
+
+        function setupSectionTracking() {
+            if (!controlPanelBody || !panelSections.length) return;
+
+            if (navObserver && typeof navObserver.disconnect === 'function') {
+                navObserver.disconnect();
+            }
+            navObserver = null;
+
+            if (typeof navScrollFallbackCleanup === 'function') {
+                navScrollFallbackCleanup();
+                navScrollFallbackCleanup = null;
+            }
+
+            if ('IntersectionObserver' in window) {
+                navObserver = new IntersectionObserver(entries => {
+                    const visible = entries
+                        .filter(entry => entry.isIntersecting)
+                        .sort((a, b) => b.intersectionRatio - a.intersectionRatio);
+
+                    if (!visible.length) return;
+
+                    const section = visible[0].target.closest('.panel-section');
+                    if (section && section.dataset.sectionKey) {
+                        setActiveNavTarget(section.dataset.sectionKey);
+                    }
+                }, {
+                    root: controlPanelBody,
+                    threshold: [0.25, 0.4, 0.65, 0.85],
+                    rootMargin: '-6px 0px -35% 0px'
+                });
+
+                panelSections.forEach(section => {
+                    const summary = section.querySelector('summary');
+                    if (summary) {
+                        navObserver.observe(summary);
+                    }
+                });
+            } else {
+                const updateActive = () => {
+                    const navHeight = controlPanelNav ? controlPanelNav.offsetHeight : 0;
+                    const reference = controlPanelBody.scrollTop + navHeight + 40;
+                    let closestSection = null;
+                    let closestDistance = Number.POSITIVE_INFINITY;
+
+                    panelSections.forEach(section => {
+                        const key = section.dataset.sectionKey;
+                        if (!key) return;
+                        const distance = Math.abs(section.offsetTop - reference);
+                        if (distance < closestDistance) {
+                            closestDistance = distance;
+                            closestSection = section;
+                        }
+                    });
+
+                    if (closestSection && closestSection.dataset.sectionKey) {
+                        setActiveNavTarget(closestSection.dataset.sectionKey);
+                    }
+                };
+
+                const throttled = throttle(updateActive, 120);
+                controlPanelBody.addEventListener('scroll', throttled);
+                navScrollFallbackCleanup = () => {
+                    controlPanelBody.removeEventListener('scroll', throttled);
+                };
+                updateActive();
+            }
+        }
+
+        const handleViewportChange = throttle(() => {
+            updatePanelHeights();
+            applyMobileLayout();
+            setupSectionTracking();
+        });
+
+        collapseButton.addEventListener('click', () => {
+            const collapsed = !controlsElement.classList.contains('is-collapsed');
+            setControlPanelState(collapsed, { userInitiated: true, persist: true });
+        });
+
+        controlsHeaderGrip.addEventListener('click', () => {
+            const collapsed = !controlsElement.classList.contains('is-collapsed');
+            setControlPanelState(collapsed, { userInitiated: true, persist: true });
+        });
+
+        panelSections.forEach(section => {
+            section.addEventListener('toggle', () => {
+                if (section.dataset.programmaticToggle === 'true') {
+                    delete section.dataset.programmaticToggle;
+                    return;
+                }
+
+                section.dataset.userToggled = 'true';
+
+                const key = section.dataset.sectionKey;
+                if (key) {
+                    sectionStates[key] = section.open;
+                    persistSectionPreferences();
+                    syncNavButtonForSection(section);
+
+                    if (section.open) {
+                        setActiveNavTarget(key);
+                    }
+                }
+            });
+        });
+
+        applySectionPreferences();
+        updatePanelHeights();
+        applyMobileLayout();
+        setupSectionTracking();
+
+        if (typeof mobileQuery.addEventListener === 'function') {
+            mobileQuery.addEventListener('change', handleViewportChange);
+        } else if (typeof mobileQuery.addListener === 'function') {
+            mobileQuery.addListener(handleViewportChange);
+        }
+
+        window.addEventListener('resize', handleViewportChange);
+
+        if (window.visualViewport) {
+            window.visualViewport.addEventListener('resize', handleViewportChange);
+            window.visualViewport.addEventListener('scroll', handleViewportChange);
+        }
+
+        let headerTouchStartY = null;
+        let headerTouchCollapsed = false;
+        const SWIPE_TOGGLE_THRESHOLD = 45;
+
+        function handleHeaderTouchStart(event) {
+            if (!mobileQuery.matches || event.touches.length !== 1) {
+                headerTouchStartY = null;
+                return;
+            }
+
+            headerTouchStartY = event.touches[0].clientY;
+            headerTouchCollapsed = controlsElement.classList.contains('is-collapsed');
+        }
+
+        function handleHeaderTouchMove(event) {
+            if (headerTouchStartY == null || event.touches.length !== 1) {
+                return;
+            }
+
+            const deltaY = event.touches[0].clientY - headerTouchStartY;
+
+            if (headerTouchCollapsed && deltaY < -SWIPE_TOGGLE_THRESHOLD) {
+                setControlPanelState(false, { userInitiated: true, persist: true });
+                headerTouchStartY = null;
+            } else if (!headerTouchCollapsed && deltaY > SWIPE_TOGGLE_THRESHOLD) {
+                setControlPanelState(true, { userInitiated: true, persist: true });
+                headerTouchStartY = null;
+            }
+        }
+
+        function resetHeaderTouch() {
+            headerTouchStartY = null;
+        }
+
+        if (controlsHeader) {
+            controlsHeader.addEventListener('touchstart', handleHeaderTouchStart, { passive: true });
+            controlsHeader.addEventListener('touchmove', handleHeaderTouchMove, { passive: true });
+            controlsHeader.addEventListener('touchend', resetHeaderTouch);
+            controlsHeader.addEventListener('touchcancel', resetHeaderTouch);
+        }
 
         window.selectMode = function(mode) {
             currentMode = mode;
@@ -463,15 +2351,32 @@
             }
 
             // Initialize choreographer with selected mode
-            initChoreographer(mode);
+            choreographerInitQueue = choreographerInitQueue
+                .catch(() => {})
+                .then(() => initChoreographer(mode))
+                .catch((error) => {
+                    console.error('Failed to initialise choreographer', error);
+                });
+
+            return choreographerInitQueue;
         };
 
         window.toggleMode = function() {
             const newMode = currentMode === 'reactive' ? 'choreographed' : 'reactive';
-            selectMode(newMode);
+            return selectMode(newMode);
         };
 
         async function initChoreographer(mode) {
+            if (choreographer && typeof choreographer.destroy === 'function') {
+                const previous = choreographer;
+                choreographer = null;
+                window.choreographer = null;
+                try {
+                    await previous.destroy();
+                } catch (error) {
+                    console.warn('Failed to tear down previous choreographer instance', error);
+                }
+            }
             const { MusicVideoChoreographer } = await import('./music-choreographer-engine.js');
             choreographer = new MusicVideoChoreographer(mode);
             window.choreographer = choreographer;
