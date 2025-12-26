@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VIB34D AI Conductor Console</title>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: 'Orbitron', sans-serif;
+            background: radial-gradient(circle at top left, rgba(0, 255, 200, 0.15), rgba(0, 0, 0, 0.95));
+            color: #e0faff;
+            height: 100vh;
+            overflow: hidden;
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 18px;
+            padding: 18px;
+        }
+
+        #visualizer-shell {
+            position: relative;
+            border: 2px solid rgba(0, 255, 255, 0.35);
+            border-radius: 18px;
+            overflow: hidden;
+            background: rgba(0, 0, 0, 0.75);
+            box-shadow: 0 0 45px rgba(0, 255, 255, 0.12);
+        }
+
+        #visualizer-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+        }
+
+        .holographic-layers {
+            width: 100%;
+            height: 100%;
+            position: relative;
+        }
+
+        .holographic-layers canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            mix-blend-mode: screen;
+        }
+
+        #console-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            border: 2px solid rgba(0, 255, 255, 0.25);
+            border-radius: 18px;
+            padding: 18px;
+            background: rgba(10, 12, 18, 0.85);
+            backdrop-filter: blur(16px);
+            box-shadow: 0 0 40px rgba(0, 255, 255, 0.08);
+        }
+
+        #console-panel h1 {
+            font-size: 22px;
+            text-transform: uppercase;
+            letter-spacing: 3px;
+            margin: 0;
+            background: linear-gradient(90deg, #00faff, #8b5cff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        #state-summary {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 10px;
+            font-size: 12px;
+            text-transform: uppercase;
+        }
+
+        .state-chip {
+            padding: 12px;
+            border-radius: 12px;
+            background: rgba(0, 255, 255, 0.08);
+            border: 1px solid rgba(0, 255, 255, 0.2);
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .state-chip span.value {
+            font-size: 18px;
+            color: #ffffff;
+        }
+
+        #conversation-log {
+            flex: 1;
+            background: rgba(8, 12, 20, 0.85);
+            border: 1px solid rgba(0, 255, 255, 0.15);
+            border-radius: 12px;
+            padding: 12px;
+            overflow-y: auto;
+            font-size: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .message {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            padding: 10px;
+            border-radius: 10px;
+        }
+
+        .message.user {
+            background: rgba(139, 92, 255, 0.2);
+            align-self: flex-end;
+            border: 1px solid rgba(139, 92, 255, 0.4);
+        }
+
+        .message.system {
+            background: rgba(0, 255, 255, 0.12);
+            border: 1px solid rgba(0, 255, 255, 0.35);
+        }
+
+        .message .meta {
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            opacity: 0.7;
+        }
+
+        form#prompt-form {
+            display: flex;
+            gap: 10px;
+        }
+
+        #prompt-input {
+            flex: 1;
+            padding: 14px;
+            border-radius: 12px;
+            border: 1px solid rgba(0, 255, 255, 0.3);
+            background: rgba(0, 10, 18, 0.9);
+            color: #e6feff;
+            font-size: 14px;
+            font-family: 'Orbitron', sans-serif;
+            letter-spacing: 1px;
+        }
+
+        #prompt-input:focus {
+            outline: none;
+            border-color: #8b5cff;
+            box-shadow: 0 0 15px rgba(139, 92, 255, 0.35);
+        }
+
+        #send-btn {
+            background: linear-gradient(135deg, #00faff, #8b5cff);
+            border: none;
+            border-radius: 12px;
+            padding: 0 24px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #020208;
+            cursor: pointer;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        #send-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 10px 20px rgba(0, 250, 255, 0.25);
+        }
+
+        #quick-commands {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 10px;
+        }
+
+        .quick-btn {
+            background: rgba(0, 255, 255, 0.12);
+            border: 1px solid rgba(0, 255, 255, 0.3);
+            border-radius: 12px;
+            padding: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-size: 11px;
+            cursor: pointer;
+            transition: transform 0.2s ease, background 0.2s ease;
+        }
+
+        .quick-btn:hover {
+            transform: translateY(-1px);
+            background: rgba(0, 255, 255, 0.18);
+        }
+
+        @media (max-width: 1100px) {
+            body {
+                grid-template-columns: 1fr;
+                grid-template-rows: 1fr 1fr;
+                height: auto;
+                overflow: auto;
+            }
+
+            #visualizer-shell {
+                min-height: 320px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <section id="visualizer-shell">
+        <div id="visualizer-container">
+            <div class="holographic-layers">
+                <canvas id="background-canvas"></canvas>
+                <canvas id="shadow-canvas"></canvas>
+                <canvas id="content-canvas"></canvas>
+                <canvas id="highlight-canvas"></canvas>
+                <canvas id="accent-canvas"></canvas>
+            </div>
+        </div>
+    </section>
+    <section id="console-panel">
+        <h1>AI Conductor Console</h1>
+        <div id="state-summary"></div>
+        <div id="conversation-log"></div>
+        <form id="prompt-form">
+            <input id="prompt-input" type="text" placeholder="Describe the next move…" autocomplete="off" />
+            <button id="send-btn" type="submit">Send</button>
+        </form>
+        <div id="quick-commands">
+            <button class="quick-btn" data-prompt="give me a calm ambient bridge with softer chaos">Calm Bridge</button>
+            <button class="quick-btn" data-prompt="push into neon cyberpunk mode and raise speed">Neon Surge</button>
+            <button class="quick-btn" data-prompt="prep variation 18 for the drop">Variation 18</button>
+            <button class="quick-btn" data-prompt="fade hue from 40 to 300 over 12 seconds">Spectrum Fade</button>
+        </div>
+    </section>
+
+    <script type="module">
+        import { VIB34DIntegratedEngine } from './src/core/Engine.js';
+        import { DynamicControlEngine } from './src/llm/DynamicControlEngine.js';
+        import { LLMCommandRouter } from './src/llm/DynamicCommandRouter.js';
+
+        const engine = new VIB34DIntegratedEngine();
+        const dynamicEngine = new DynamicControlEngine(engine);
+        const router = new LLMCommandRouter();
+
+        const conversationLog = document.getElementById('conversation-log');
+        const stateSummary = document.getElementById('state-summary');
+        const promptForm = document.getElementById('prompt-form');
+        const promptInput = document.getElementById('prompt-input');
+        const quickButtons = Array.from(document.querySelectorAll('.quick-btn'));
+
+        function appendMessage(role, message, meta) {
+            const wrapper = document.createElement('div');
+            wrapper.className = `message ${role}`;
+            if (meta) {
+                const metaEl = document.createElement('span');
+                metaEl.className = 'meta';
+                metaEl.textContent = meta;
+                wrapper.appendChild(metaEl);
+            }
+            const textEl = document.createElement('span');
+            textEl.textContent = message;
+            wrapper.appendChild(textEl);
+            conversationLog.appendChild(wrapper);
+            conversationLog.scrollTo({ top: conversationLog.scrollHeight, behavior: 'smooth' });
+        }
+
+        function renderState(snapshot) {
+            stateSummary.innerHTML = '';
+            const entries = [
+                ['Variation', `#${snapshot.variation + 1}`],
+                ['Chaos', snapshot.parameters.chaos.toFixed(2)],
+                ['Speed', snapshot.parameters.speed.toFixed(2)],
+                ['Hue', `${Math.round(snapshot.parameters.hue)}°`],
+                ['Intensity', snapshot.parameters.intensity.toFixed(2)],
+                ['Saturation', snapshot.parameters.saturation.toFixed(2)],
+                ['Morph', snapshot.parameters.morphFactor.toFixed(2)],
+                ['Grid', snapshot.parameters.gridDensity.toFixed(1)],
+            ];
+
+            entries.forEach(([label, value]) => {
+                const chip = document.createElement('div');
+                chip.className = 'state-chip';
+                const title = document.createElement('span');
+                title.textContent = label;
+                const valueEl = document.createElement('span');
+                valueEl.className = 'value';
+                valueEl.textContent = value;
+                chip.appendChild(title);
+                chip.appendChild(valueEl);
+                stateSummary.appendChild(chip);
+            });
+
+            if (snapshot.envelopes.length) {
+                const envelopeChip = document.createElement('div');
+                envelopeChip.className = 'state-chip';
+                envelopeChip.innerHTML = '<strong>Envelopes</strong>';
+                snapshot.envelopes.forEach(env => {
+                    const item = document.createElement('div');
+                    item.style.fontSize = '11px';
+                    item.textContent = `${env.target} → ${env.remaining.toFixed(1)}s (${env.easing})`;
+                    envelopeChip.appendChild(item);
+                });
+                stateSummary.appendChild(envelopeChip);
+            }
+        }
+
+        dynamicEngine.on('state', renderState);
+        dynamicEngine.on('log', entry => {
+            if (entry.level === 'debug') return;
+            appendMessage('system', entry.message, entry.level.toUpperCase());
+        });
+
+        promptForm.addEventListener('submit', event => {
+            event.preventDefault();
+            const prompt = promptInput.value.trim();
+            if (!prompt) return;
+
+            appendMessage('user', prompt, 'PROMPT');
+            promptInput.value = '';
+
+            const { intents, summary } = router.processPrompt(prompt);
+            if (summary) {
+                appendMessage('system', summary, 'ROUTER');
+            }
+
+            const { results } = dynamicEngine.enqueueIntents(intents, { prompt });
+            results
+                .filter(result => result.message)
+                .forEach(result => {
+                    appendMessage('system', result.message, (result.status || 'INFO').toUpperCase());
+                });
+        });
+
+        quickButtons.forEach(button => {
+            button.addEventListener('click', () => {
+                promptInput.value = button.dataset.prompt;
+                promptForm.requestSubmit();
+            });
+        });
+
+        appendMessage('system', 'AI Conductor ready. Describe a visual move to begin.', 'STATUS');
+        renderState(dynamicEngine.getStateSnapshot());
+    </script>
+</body>
+</html>
